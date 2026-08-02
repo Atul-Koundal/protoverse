@@ -19,3 +19,5 @@ bin/
 # OS
 .DS_Store
 Thumbs.db
+protoc.zip
+protoc_extracted/
