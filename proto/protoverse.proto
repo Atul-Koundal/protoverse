@@ -1,0 +1,112 @@
+syntax = "proto3";
+
+package protoverse.v1;
+
+option go_package = "github.com/Atul-Koundal/protoverse/gen/protoverse/v1;protoversev1";
+
+import "google/protobuf/timestamp.proto";
+
+service GameService {
+  rpc CreateAccount(CreateAccountRequest) returns (Player);
+  rpc GetGalaxyState(GetGalaxyStateRequest) returns (GalaxyState);
+  rpc MoveFleet(MoveFleetRequest) returns (ActionAck);
+  rpc Attack(AttackRequest) returns (ActionAck);
+  rpc Scan(ScanRequest) returns (ScanResult);
+  rpc StreamGameState(StreamGameStateRequest) returns (stream GameEvent);
+}
+
+message Player {
+  string id = 1;
+  string display_name = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message Position {
+  double x = 1;
+  double y = 2;
+}
+
+message Planet {
+  string id = 1;
+  string owner_id = 2;
+  string name = 3;
+  Position position = 4;
+  int64 resources = 5;
+}
+
+message Ship {
+  string id = 1;
+  string fleet_id = 2;
+  string ship_type = 3;
+  int32 attack = 4;
+  int32 defense = 5;
+  int32 hp = 6;
+}
+
+message Fleet {
+  string id = 1;
+  string owner_id = 2;
+  Position position = 3;
+  Position destination = 4;
+  repeated Ship ships = 5;
+}
+
+message CreateAccountRequest {
+  string display_name = 1;
+}
+
+message GetGalaxyStateRequest {
+}
+
+message GalaxyState {
+  repeated Planet planets = 1;
+  repeated Fleet fleets = 2;
+}
+
+message MoveFleetRequest {
+  string fleet_id = 1;
+  Position destination = 2;
+}
+
+message AttackRequest {
+  string attacking_fleet_id = 1;
+  string target_fleet_id = 2;
+}
+
+message ScanRequest {
+  Position center = 1;
+  double radius = 2;
+}
+
+message ScanResult {
+  repeated Fleet visible_fleets = 1;
+  repeated Planet visible_planets = 2;
+}
+
+message ActionAck {
+  string action_id = 1;
+  google.protobuf.Timestamp scheduled_for = 2;
+}
+
+message StreamGameStateRequest {
+  string player_id = 1;
+}
+
+message GameEvent {
+  oneof event {
+    FleetMoved fleet_moved = 1;
+    CombatResolved combat_resolved = 2;
+  }
+}
+
+message FleetMoved {
+  string fleet_id = 1;
+  Position new_position = 2;
+}
+
+message CombatResolved {
+  string attacking_fleet_id = 1;
+  string target_fleet_id = 2;
+  int32 damage_dealt = 3;
+  bool target_destroyed = 4;
+}
