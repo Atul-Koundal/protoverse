@@ -2,22 +2,29 @@ package server
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	protoversev1 "github.com/Atul-Koundal/protoverse/gen/protoverse/v1"
+	"github.com/Atul-Koundal/protoverse/internal/queue"
 	"github.com/Atul-Koundal/protoverse/internal/repository"
 )
 
-// GameServer implements the GameService gRPC interface.
+// TickInterval mirrors the tick engine's cadence — actions are scheduled
+// this far in the future so a not-yet-built tick engine has a real window
+// to pick them up once Phase 4 lands.
+const TickInterval = 10 * time.Second
+
 type GameServer struct {
 	protoversev1.UnimplementedGameServiceServer
-	Repo *repository.Repository
+	Repo  *repository.Repository
+	Queue *queue.Queue
 }
 
-func New(repo *repository.Repository) *GameServer {
-	return &GameServer{Repo: repo}
+func New(repo *repository.Repository, q *queue.Queue) *GameServer {
+	return &GameServer{Repo: repo, Queue: q}
 }
 
 func (s *GameServer) CreateAccount(ctx context.Context, req *protoversev1.CreateAccountRequest) (*protoversev1.Player, error) {
