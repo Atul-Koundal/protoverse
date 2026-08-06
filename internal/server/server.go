@@ -8,23 +8,30 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	protoversev1 "github.com/Atul-Koundal/protoverse/gen/protoverse/v1"
+	"github.com/Atul-Koundal/protoverse/internal/cache"
 	"github.com/Atul-Koundal/protoverse/internal/queue"
 	"github.com/Atul-Koundal/protoverse/internal/repository"
 )
 
-// TickInterval mirrors the tick engine's cadence — actions are scheduled
-// this far in the future so a not-yet-built tick engine has a real window
-// to pick them up once Phase 4 lands.
 const TickInterval = 10 * time.Second
+
+// galaxyStateCacheKey and TTL are short and deliberately named — 5s means a
+// burst of clients calling GetGalaxyState at once hits Postgres once, not
+// once per request, while still staying close to real-time for a 10s tick.
+const (
+	galaxyStateCacheKey = "cache:galaxy_state"
+	galaxyStateCacheTTL = 5 * time.Second
+)
 
 type GameServer struct {
 	protoversev1.UnimplementedGameServiceServer
 	Repo  *repository.Repository
 	Queue *queue.Queue
+	Cache *cache.Cache
 }
 
-func New(repo *repository.Repository, q *queue.Queue) *GameServer {
-	return &GameServer{Repo: repo, Queue: q}
+func New(repo *repository.Repository, q *queue.Queue, c *cache.Cache) *GameServer {
+	return &GameServer{Repo: repo, Queue: q, Cache: c}
 }
 
 func (s *GameServer) CreateAccount(ctx context.Context, req *protoversev1.CreateAccountRequest) (*protoversev1.Player, error) {
@@ -41,6 +48,30 @@ func (s *GameServer) CreateAccount(ctx context.Context, req *protoversev1.Create
 }
 
 func (s *GameServer) GetGalaxyState(ctx context.Context, req *protoversev1.GetGalaxyStateRequest) (*protoversev1.GalaxyState, error) {
+	var cached protoversev1.GalaxyState
+	found, err := s.Cache.GetJSON(ctx, galaxyStateCacheKey, &cached)
+	if err != nil {
+		// Cache errors shouldn't break the request — fall through to Postgres.
+		found = false
+	}
+	if found {
+		return &cached, nil
+	}
+
+	state, err := s.buildGalaxyStateFromDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.Cache.SetJSON(ctx, galaxyStateCacheKey, state, galaxyStateCacheTTL); err != nil {
+		// Log-worthy but not fatal — worth adding real logging here later.
+		_ = err
+	}
+
+	return state, nil
+}
+
+func (s *GameServer) buildGalaxyStateFromDB(ctx context.Context) (*protoversev1.GalaxyState, error) {
 	planets, err := s.Repo.ListPlanets(ctx)
 	if err != nil {
 		return nil, err

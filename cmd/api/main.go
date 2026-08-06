@@ -6,10 +6,12 @@ import (
 	"net"
 	"os"
 
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
 	protoversev1 "github.com/Atul-Koundal/protoverse/gen/protoverse/v1"
+	"github.com/Atul-Koundal/protoverse/internal/cache"
 	"github.com/Atul-Koundal/protoverse/internal/queue"
 	"github.com/Atul-Koundal/protoverse/internal/repository"
 	"github.com/Atul-Koundal/protoverse/internal/server"
@@ -35,13 +37,16 @@ func main() {
 	q := queue.New(redisAddr)
 	defer q.Close()
 
+	cacheClient := redis.NewClient(&redis.Options{Addr: redisAddr})
+	c := cache.New(cacheClient)
+
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
 	grpcServer := grpc.NewServer()
-	gameServer := server.New(repo, q)
+	gameServer := server.New(repo, q, c)
 	protoversev1.RegisterGameServiceServer(grpcServer, gameServer)
 	reflection.Register(grpcServer)
 
