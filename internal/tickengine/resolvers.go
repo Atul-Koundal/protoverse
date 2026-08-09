@@ -3,7 +3,6 @@ package tickengine
 import (
 	"context"
 	"encoding/json"
-	"math/rand"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -11,8 +10,6 @@ import (
 	"github.com/Atul-Koundal/protoverse/internal/domain"
 )
 
-// pgxTx is a local alias so this file doesn't need its own pgx import line
-// duplicated across files — same underlying type as engine.go uses.
 type pgxTx = pgx.Tx
 
 func (e *Engine) resolveMove(ctx context.Context, tx pgxTx, action *domain.Action) error {
@@ -64,7 +61,7 @@ func (e *Engine) resolveAttack(ctx context.Context, tx pgxTx, action *domain.Act
 		return err
 	}
 	if attacker == nil {
-		return nil // attacker was destroyed by something else before this tick
+		return nil
 	}
 
 	target, err := e.Repo.TxGetFleetForUpdate(ctx, tx, targetID)
@@ -72,7 +69,7 @@ func (e *Engine) resolveAttack(ctx context.Context, tx pgxTx, action *domain.Act
 		return err
 	}
 	if target == nil {
-		return nil // target already destroyed
+		return nil
 	}
 
 	totalAttack := 0
@@ -84,13 +81,7 @@ func (e *Engine) resolveAttack(ctx context.Context, tx pgxTx, action *domain.Act
 		totalDefense += s.Defense
 	}
 
-	damage := totalAttack - totalDefense
-	// +/-10% random variance so combat isn't perfectly deterministic
-	variance := 0.9 + rand.Float64()*0.2
-	damage = int(float64(damage) * variance)
-	if damage < 0 {
-		damage = 0
-	}
+	damage := calculateDamage(totalAttack, totalDefense)
 
 	destroyed, err := e.Repo.TxApplyDamageToFleet(ctx, tx, targetID, damage)
 	if err != nil {
