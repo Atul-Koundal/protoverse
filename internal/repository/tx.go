@@ -15,7 +15,7 @@ func (r *Repository) WithTx(ctx context.Context, fn func(tx pgx.Tx) error) error
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx) // no-op if already committed
+	defer func() { _ = tx.Rollback(ctx) }() // no-op if already committed; error is intentionally ignored here
 
 	if err := fn(tx); err != nil {
 		return err
