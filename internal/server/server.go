@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,9 +16,6 @@ import (
 
 const TickInterval = 10 * time.Second
 
-// galaxyStateCacheKey and TTL are short and deliberately named — 5s means a
-// burst of clients calling GetGalaxyState at once hits Postgres once, not
-// once per request, while still staying close to real-time for a 10s tick.
 const (
 	galaxyStateCacheKey = "cache:galaxy_state"
 	galaxyStateCacheTTL = 5 * time.Second
@@ -51,21 +49,24 @@ func (s *GameServer) GetGalaxyState(ctx context.Context, req *protoversev1.GetGa
 	var cached protoversev1.GalaxyState
 	found, err := s.Cache.GetJSON(ctx, galaxyStateCacheKey, &cached)
 	if err != nil {
-		// Cache errors shouldn't break the request — fall through to Postgres.
+		log.Printf("GetGalaxyState: cache read error (falling back to DB): %v", err)
 		found = false
 	}
 	if found {
+		log.Println("GetGalaxyState: served from cache")
 		return &cached, nil
 	}
 
+	log.Println("GetGalaxyState: cache miss, querying DB")
 	state, err := s.buildGalaxyStateFromDB(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if err := s.Cache.SetJSON(ctx, galaxyStateCacheKey, state, galaxyStateCacheTTL); err != nil {
-		// Log-worthy but not fatal — worth adding real logging here later.
-		_ = err
+		log.Printf("GetGalaxyState: failed to cache result: %v", err)
+	} else {
+		log.Println("GetGalaxyState: wrote result to cache")
 	}
 
 	return state, nil

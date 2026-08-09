@@ -1,0 +1,7 @@
+.git
+protoc_extracted/
+protoc.zip
+*.exe
+bin/
+.vscode/
+.idea/
