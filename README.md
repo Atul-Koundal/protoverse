@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/Atul-Koundal/protoverse/actions/workflows/ci.yml/badge.svg)](https://github.com/Atul-Koundal/protoverse/actions/workflows/ci.yml)
 
-[![CI](https://github.com/Atul-Koundal/protoverse/actions/workflows/ci.yml/badge.svg)](https://github.com/Atul-Koundal/protoverse/actions/workflows/ci.yml)
 
 Tick-based space strategy game backend built in Go. Players command fleets via gRPC; commands queue in Redis and resolve on a fixed tick by a background worker, with state in PostgreSQL and live updates via Redis pub/sub. Inspired by [Schemaverse](https://github.com/Abstrct/Schemaverse) — reimagined as a real distributed system.
 
