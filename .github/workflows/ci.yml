@@ -71,6 +71,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Compute lowercase image repo
+        run: echo "IMAGE_REPO=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: Log in to GHCR
         if: github.event_name == 'push'
         uses: docker/login-action@v3
@@ -86,8 +89,8 @@ jobs:
           target: api
           push: ${{ github.event_name == 'push' }}
           tags: |
-            ghcr.io/${{ github.repository }}-api:latest
-            ghcr.io/${{ github.repository }}-api:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_REPO }}-api:latest
+            ghcr.io/${{ env.IMAGE_REPO }}-api:${{ github.sha }}
 
       - name: Build and push tickengine image
         uses: docker/build-push-action@v6
@@ -96,5 +99,5 @@ jobs:
           target: tickengine
           push: ${{ github.event_name == 'push' }}
           tags: |
-            ghcr.io/${{ github.repository }}-tickengine:latest
-            ghcr.io/${{ github.repository }}-tickengine:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_REPO }}-tickengine:latest
+            ghcr.io/${{ env.IMAGE_REPO }}-tickengine:${{ github.sha }}
