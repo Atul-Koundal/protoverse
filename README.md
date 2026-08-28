@@ -83,16 +83,16 @@ Dockerfile
 
 | Phase | What it added | Status |
 |---|---|---|
-| 1 | Postgres schema, domain structs, repository layer | ✅ |
-| 2 | gRPC API server (`CreateAccount`, `GetGalaxyState`) | ✅ |
-| 3 | `MoveFleet`/`Attack` RPCs, Redis action queue | ✅ |
-| 4 | Tick engine — transactional move/combat resolution | ✅ |
-| 5 | `StreamGameState` — live updates via Redis pub/sub | ✅ |
-| 6 | Redis read caching for `GetGalaxyState` | ✅ |
-| 7 | Dockerized, orchestrated with Docker Compose | ✅ |
-| 8 | Unit + integration test suite | ✅ |
-| 9 | GitHub Actions CI — lint, test, build & push to GHCR | ✅ |
-| 10 | README, demo polish | ✅ |
+| 1 | Postgres schema, domain structs, repository layer | Done |
+| 2 | gRPC API server (`CreateAccount`, `GetGalaxyState`) | Done |
+| 3 | `MoveFleet`/`Attack` RPCs, Redis action queue | Done |
+| 4 | Tick engine — transactional move/combat resolution | Done |
+| 5 | `StreamGameState` — live updates via Redis pub/sub | Done |
+| 6 | Redis read caching for `GetGalaxyState` | Done |
+| 7 | Dockerized, orchestrated with Docker Compose | Done |
+| 8 | Unit + integration test suite | Done |
+| 9 | GitHub Actions CI — lint, test, build & push to GHCR | Done |
+| 10 | README, demo polish | Done |
 
 Full phase-by-phase build order in [`BUILD_ORDER.md`](BUILD_ORDER.md).
 
