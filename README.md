@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Atul-Koundal/protoverse/actions/workflows/ci.yml/badge.svg)](https://github.com/Atul-Koundal/protoverse/actions/workflows/ci.yml)
 
-Tick-based space strategy game backend built in Go. Players command fleets via gRPC; commands queue in Redis and resolve on a fixed tick by a background worker, with state in PostgreSQL and live updates via Redis pub/sub. Inspired by [Schemaverse](https://github.com/Abstrct/Schemaverse) — reimagined as a real distributed system.
+Tick-based space strategy game backend built in Go. Players command fleets via gRPC; commands queue in Redis and resolve on a fixed tick by a background worker, with state in PostgreSQL and live updates via Redis pub/sub. Inspired by [Schemaverse](https://github.com/Abstrct/Schemaverse)  reimagined as a real distributed system.
 
 ## Architecture
 
@@ -48,7 +48,7 @@ grpcurl -plaintext -d '{"player_id": "any-id"}' localhost:50051 protoverse.v1.Ga
 grpcurl -plaintext -d '{"fleet_id": "<a-fleet-id>", "destination": {"x": 50, "y": 50}}' localhost:50051 protoverse.v1.GameService/MoveFleet
 ```
 
-The `StreamGameState` call above is the best single thing to demo — it shows the full pipeline (command → gRPC → Postgres → Redis queue → tick engine → Redis pub/sub → live gRPC stream) working end to end.
+The `StreamGameState` call above is the best single thing to demo : it shows the full pipeline (command → gRPC → Postgres → Redis queue → tick engine → Redis pub/sub → live gRPC stream) working end to end.
 
 ## Running tests
 
@@ -98,6 +98,6 @@ Full phase-by-phase build order in [`BUILD_ORDER.md`](BUILD_ORDER.md).
 
 ## Known simplifications (honest, not hidden)
 
-- `StreamGameState` broadcasts every event to every connected client — it accepts a `player_id` but doesn't yet filter by fleet ownership.
-- Combat is intentionally simple (`attack - defense`, ±10% variance) — no ship types with distinct roles, no resource/economy layer yet.
+- `StreamGameState` broadcasts every event to every connected client , it accepts a `player_id` but doesn't yet filter by fleet ownership.
+- Combat is intentionally simple (`attack - defense`, ±10% variance) , no ship types with distinct roles, no resource/economy layer yet.
 - Single tick-engine instance in practice; the code (atomic Redis pop + row-level Postgres locking) is designed to be safe for multiple replicas, but this hasn't been load-tested with more than one running concurrently.
