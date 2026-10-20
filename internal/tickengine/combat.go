@@ -1,6 +1,10 @@
 package tickengine
 
-import "math/rand"
+import (
+	"math/rand"
+
+	"github.com/Atul-Koundal/protoverse/internal/domain"
+)
 
 // calculateDamage applies +/-10% random variance to the raw attack-defense
 // difference, floored at 0. Pulled out of resolveAttack as its own function
@@ -16,4 +20,16 @@ func calculateDamage(totalAttack, totalDefense int) int {
 		damage = 0
 	}
 	return damage
+}
+
+// salvageValue is how many credits a victor recovers from the wreckage of the
+// given destroyed ship types.
+func salvageValue(destroyed []string) int64 {
+	var total int64
+	for _, shipType := range destroyed {
+		if spec, ok := domain.LookupShip(shipType); ok {
+			total += int64(float64(spec.Cost) * domain.SalvageRatio)
+		}
+	}
+	return total
 }
