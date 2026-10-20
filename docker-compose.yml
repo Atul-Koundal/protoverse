@@ -44,6 +44,7 @@ services:
     environment:
       DB_URL: "postgres://postgres:devpass@postgres:5432/protoverse?sslmode=disable"
       REDIS_ADDR: "redis:6379"
+      GALAXY_PLANETS: "40"
     ports:
       - "50051:50051"
     depends_on:
@@ -68,6 +69,18 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+
+  web:
+    build:
+      context: .
+      target: web
+    environment:
+      GRPC_ADDR: "api:50051"
+      HTTP_ADDR: ":8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
 
 volumes:
   protoverse_pgdata:
