@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protoverse</title>
+<style>
+  :root {
+    --bg: #070b16; --panel: #0e1526; --panel2: #141d33; --line: #22304f;
+    --text: #d9e2f5; --dim: #7f8fb0; --accent: #5ac8fa; --good: #4ade80;
+    --bad: #f87171; --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: #17406b; border-color: #2a6fb0; }
+  input, select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; }
+  h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+  header { display: flex; gap: 20px; align-items: center; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header .brand { font-weight: 700; letter-spacing: .1em; color: var(--accent); }
+  header .stat b { color: var(--good); font-variant-numeric: tabular-nums; }
+  header .grow { flex: 1; }
+  main { display: grid; grid-template-columns: minmax(300px, 1fr) 360px; gap: 12px; padding: 12px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  canvas { width: 100%; aspect-ratio: 1; display: block; background: radial-gradient(circle at 50% 40%, #0d1530, #060913); border: 1px solid var(--line); border-radius: 10px; cursor: crosshair; }
+  .hint { color: var(--dim); font-size: 12px; margin-top: 6px; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
+  .dim { color: var(--dim); } .good { color: var(--good); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+  .tag { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 11px; background: var(--panel2); border: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { padding: 3px 4px; text-align: left; } th { color: var(--dim); font-weight: 500; }
+  tr.me td { color: var(--good); }
+  .bar { height: 5px; background: #1b2744; border-radius: 3px; overflow: hidden; width: 70px; display: inline-block; vertical-align: middle; }
+  .bar > i { display: block; height: 100%; background: var(--good); }
+  #log { max-height: 220px; overflow-y: auto; font-size: 12.5px; }
+  #log div { padding: 2px 0; border-bottom: 1px solid #172138; }
+  #login { position: fixed; inset: 0; background: rgba(4,7,14,.94); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  #login[hidden], [hidden] { display: none !important; }
+  #login .box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 24px; width: min(420px, 92vw); }
+  #login h1 { margin: 0 0 4px; color: var(--accent); letter-spacing: .1em; }
+  #login input { width: 100%; margin: 6px 0; }
+  .key { font-family: ui-monospace, monospace; background: var(--bg); padding: 8px; border-radius: 6px; word-break: break-all; border: 1px solid var(--warn); }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--line); padding: 8px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; max-width: 90vw; }
+  #toast.show { opacity: 1; } #toast.err { border-color: var(--bad); color: var(--bad); }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="box">
+    <h1>PROTOVERSE</h1>
+    <p class="dim">A tick-based space strategy game. Claim planets, build fleets, climb the leaderboard.</p>
+    <div id="loginForm">
+      <input id="nameInput" placeholder="Choose a commander name" maxlength="24" autocomplete="off">
+      <div class="row"><button class="primary" id="registerBtn">Start playing</button></div>
+      <p class="dim" style="margin-top:16px">Already have an API key?</p>
+      <input id="keyInput" placeholder="pv_..." autocomplete="off">
+      <div class="row"><button id="loginBtn">Log in</button></div>
+    </div>
+    <div id="keyBox" hidden>
+      <p><b class="good">Account created.</b> This is your API key. It is shown <b>once</b> — save it, it is your password.</p>
+      <div class="key" id="keyText"></div>
+      <div class="row"><button id="copyKey">Copy</button><button class="primary" id="enterGame">Enter the galaxy</button></div>
+    </div>
+    <p class="bad" id="loginErr"></p>
+  </div>
+</div>
+
+<header>
+  <span class="brand">PROTOVERSE</span>
+  <span class="stat">Commander <b id="hName" style="color:var(--text)">–</b></span>
+  <span class="stat">Credits <b id="hCredits">0</b></span>
+  <span class="stat">Rank <b id="hRank" style="color:var(--warn)">–</b></span>
+  <span class="stat">Next tick <b id="hTick" style="color:var(--accent)">–</b></span>
+  <span class="grow"></span>
+  <button id="logout">Log out</button>
+</header>
+
+<main>
+  <section>
+    <canvas id="map" width="900" height="900"></canvas>
+    <div class="hint">Click your fleet (cyan) to select it, then click a planet, an enemy fleet or empty space to give orders. Orders resolve on a tick; long trips take several.</div>
+  </section>
+
+  <aside>
+    <div class="card" id="selection"><h2>Selection</h2><div class="dim">Nothing selected.</div></div>
+    <div class="card"><h2>My fleets</h2><div id="fleets" class="dim">–</div></div>
+    <div class="card"><h2>Pending orders</h2><div id="pending" class="dim">None.</div></div>
+    <div class="card"><h2>Leaderboard</h2><div id="board"></div></div>
+    <div class="card"><h2>Event log</h2><div id="log"></div></div>
+  </aside>
+</main>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const short = (id) => String(id).slice(0, 8);
+const num = (v) => Number(v || 0); // int64 fields arrive as JSON strings
+
+let key = localStorage.getItem("pv_key") || "";
+let catalog = null, me = null, galaxy = null, board = [];
+let fetchedAt = Date.now();
+let sel = { fleet: null, target: null, point: null }; // own fleet, clicked planet/fleet, empty-space point
+let es = null;
+
+// ---------- API ----------
+async function api(path, method = "GET", body) {
+  const headers = { "Content-Type": "application/json" };
+  if (key) headers.Authorization = "Bearer " + key;
+  const res = await fetch("/api/" + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error(data.error || res.statusText); e.status = res.status; throw e; }
+  return data;
+}
+function toast(msg, isErr) {
+  const t = $("toast"); t.textContent = msg; t.className = "show" + (isErr ? " err" : "");
+  clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = ""), 3500);
+}
+function fmtEta(ts) {
+  const s = Math.max(0, Math.round((new Date(ts) - Date.now()) / 1000));
+  return s <= 1 ? "next tick." : "in ~" + s + "s.";
+}
+async function order(path, body, okMsg) {
+  try { const a = await api(path, "POST", body); toast(okMsg + " Resolves " + fmtEta(a.scheduledFor)); await refresh(); }
+  catch (e) { toast(e.message, true); }
+}
+
+// ---------- login ----------
+async function startSession() {
+  $("login").hidden = true;
+  catalog = await api("catalog");
+  await refresh();
+  connectStream();
+}
+$("registerBtn").onclick = async () => {
+  $("loginErr").textContent = "";
+  try {
+    const p = await api("register", "POST", { displayName: $("nameInput").value.trim() });
+    key = p.apiKey; localStorage.setItem("pv_key", key);
+    $("keyText").textContent = key; $("loginForm").hidden = true; $("keyBox").hidden = false;
+  } catch (e) { $("loginErr").textContent = e.message; }
+};
+$("copyKey").onclick = () => navigator.clipboard && navigator.clipboard.writeText(key).then(() => toast("Key copied"));
+$("enterGame").onclick = startSession;
+$("loginBtn").onclick = async () => {
+  $("loginErr").textContent = "";
+  key = $("keyInput").value.trim();
+  try { await api("me"); localStorage.setItem("pv_key", key); await startSession(); }
+  catch (e) { key = ""; $("loginErr").textContent = e.message; }
+};
+$("logout").onclick = () => { localStorage.removeItem("pv_key"); location.reload(); };
+
+// ---------- data ----------
+async function refresh() {
+  try {
+    [me, galaxy, board] = await Promise.all([api("me"), api("galaxy"), api("leaderboard?limit=10").then((b) => b.entries || [])]);
+    fetchedAt = Date.now();
+    if (sel.fleet && !myFleet(sel.fleet)) sel.fleet = null;
+    renderAll();
+  } catch (e) {
+    if (e.status === 401) { localStorage.removeItem("pv_key"); location.reload(); }
+  }
+}
+function connectStream() {
+  if (es) es.close();
+  es = new EventSource("/api/stream?key=" + encodeURIComponent(key));
+  es.onmessage = (m) => { logEvent(JSON.parse(m.data)); refresh(); };
+}
+function logEvent(ev) {
+  let msg = null, cls = "";
+  if (ev.fleetMoved) msg = `Fleet ${short(ev.fleetMoved.fleetId)} arrived at (${num(ev.fleetMoved.newPosition.x).toFixed(1)}, ${num(ev.fleetMoved.newPosition.y).toFixed(1)}).`;
+  else if (ev.combatResolved) {
+    const c = ev.combatResolved;
+    msg = `⚔ Fleet ${short(c.attackingFleetId)} hit ${short(c.targetFleetId)} for ${c.damageDealt}` + (c.targetDestroyed ? " — target destroyed" : "") +
+      (c.counterDamage ? `; return fire ${c.counterDamage}` : "") + (c.attackerDestroyed ? " — attacker destroyed" : "") +
+      (num(c.salvage) ? ` (+${c.salvage} salvage)` : "") + (num(c.counterSalvage) ? ` (+${c.counterSalvage} salvage)` : "");
+    cls = "warn";
+  }
+  else if (ev.shipBuilt) msg = `🛠 ${ev.shipBuilt.quantity} × ${ev.shipBuilt.shipType} built.`;
+  else if (ev.planetColonized) { msg = `🌍 Colonized ${ev.planetColonized.planetName}!`; cls = "good"; }
+  else if (ev.incomeEarned) msg = `+${ev.incomeEarned.credits} credits`;
+  else if (ev.actionFailed) { msg = `✖ Order failed: ${ev.actionFailed.reason}`; cls = "bad"; }
+  else return; // tick heartbeat: refresh only
+  const log = $("log"), d = document.createElement("div");
+  d.className = cls; d.textContent = new Date().toLocaleTimeString() + "  " + msg;
+  log.prepend(d); while (log.children.length > 60) log.lastChild.remove();
+}
+
+// ---------- helpers ----------
+const myId = () => me && me.player.id;
+const planets = () => (galaxy && galaxy.planets) || [];
+const allFleets = () => (galaxy && galaxy.fleets) || [];
+const myFleet = (id) => ((me && me.fleets) || []).find((f) => f.id === id);
+const countType = (f, t) => (f.ships || []).filter((s) => s.shipType === t).length;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function fleetPos(f, now = Date.now()) {
+  // Animate along the route using the position at fetch time and the arrival time.
+  if (!f.destination || !f.arrivesAt) return { x: f.position.x, y: f.position.y };
+  const total = new Date(f.arrivesAt) - fetchedAt;
+  if (total <= 0) return { x: f.destination.x, y: f.destination.y };
+  const t = Math.min(1, Math.max(0, (now - fetchedAt) / total));
+  return { x: f.position.x + (f.destination.x - f.position.x) * t, y: f.position.y + (f.destination.y - f.position.y) * t };
+}
+
+// ---------- rendering ----------
+function renderAll() {
+  $("hName").textContent = me.player.displayName;
+  $("hCredits").textContent = num(me.credits).toLocaleString();
+  const idx = board.findIndex((e) => e.playerId === myId());
+  $("hRank").textContent = idx >= 0 ? "#" + (idx + 1) : "–";
+  renderFleets(); renderPending(); renderBoard(); renderSelection();
+}
+function renderFleets() {
+  const fl = me.fleets || [];
+  $("fleets").innerHTML = fl.length ? fl.map((f) => {
+    const types = {}; (f.ships || []).forEach((s) => (types[s.shipType] = (types[s.shipType] || 0) + 1));
+    const desc = Object.entries(types).map(([t, n]) => `${n}× ${esc(t)}`).join(", ");
+    const st = f.destination ? `<span class="tag warn">moving → (${num(f.destination.x).toFixed(0)}, ${num(f.destination.y).toFixed(0)})</span>` : `<span class="tag">idle</span>`;
+    return `<div class="row" style="justify-content:space-between"><a href="#" data-fleet="${esc(f.id)}" style="color:var(--accent)">${short(f.id)}</a><span>${desc}</span>${st}</div>`;
+  }).join("") : "You have no fleets. Build ships at a planet.";
+  document.querySelectorAll("[data-fleet]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); sel = { fleet: a.dataset.fleet, target: null, point: null }; renderSelection(); }));
+}
+function renderPending() {
+  const p = me.pendingActions || [];
+  $("pending").innerHTML = p.length ? p.map((a) => `<div>${esc(a.description)} <span class="dim">— ${fmtEta(a.executeAt)}</span></div>`).join("") : "None.";
+}
+function renderBoard() {
+  $("board").innerHTML = `<table><tr><th>#</th><th>Commander</th><th>Score</th><th>🌍</th><th>🚀</th></tr>` +
+    board.map((e) => `<tr class="${e.playerId === myId() ? "me" : ""}"><td>${e.rank}</td><td>${esc(e.displayName)}</td><td>${e.score}</td><td>${e.planets}</td><td>${e.ships}</td></tr>`).join("") + `</table>`;
+}
+function buildHtml() {
+  return `<hr style="border-color:var(--line)"><h2>Build ships</h2><div class="row"><select id="bType">` +
+    catalog.ships.map((s) => `<option value="${esc(s.shipType)}">${esc(s.shipType)} — ${s.cost}c, ${s.buildTicks} ticks</option>`).join("") +
+    `</select><input id="bQty" type="number" min="1" max="${catalog.maxBuildQuantity}" value="1" style="width:60px"></div>` +
+    `<div class="row"><button class="primary" data-act="build">Build</button><span class="dim" id="bCost"></span></div><div class="dim" id="bDesc"></div>`;
+}
+function renderSelection() {
+  let html = "<h2>Selection</h2>";
+  const f = sel.fleet && myFleet(sel.fleet);
+  const t = sel.target;
+
+  if (f) {
+    html += `<div><b>Fleet ${short(f.id)}</b> <span class="dim">speed ${num(f.speed)}/tick</span></div>`;
+    html += (f.ships || []).map((s) => `<div class="row" style="margin:2px 0"><span style="width:70px">${esc(s.shipType)}</span><span class="bar"><i style="width:${100 * s.hp / s.maxHp}%"></i></span><span class="dim">${s.hp}/${s.maxHp} ⚔${s.attack} 🛡${s.defense}</span></div>`).join("");
+    html += `<hr style="border-color:var(--line)">`;
+    const fp = fleetPos(f);
+    const planet = t && t.type === "planet" && planets().find((x) => x.id === t.id);
+    const enemy = t && t.type === "fleet" && allFleets().find((x) => x.id === t.id);
+    if (planet) {
+      const d = dist(fp, planet.position);
+      html += `<div>Target planet <b>${esc(planet.name)}</b> <span class="dim">(${d.toFixed(1)} away${planet.ownerName ? ", owned by " + esc(planet.ownerName) : ", neutral"})</span></div><div class="row">`;
+      html += `<button data-act="movePlanet">Move to planet</button>`;
+      if (!planet.ownerId) html += `<button class="primary" data-act="colonize" ${countType(f, "colony") && d <= catalog.colonizeRange ? "" : "disabled"}>Colonize</button>`;
+      html += `</div>`;
+      if (planet.ownerId === myId()) html += buildHtml();
+      if (!planet.ownerId) html += `<div class="hint">Needs a colony ship and to be within ${catalog.colonizeRange} units.</div>`;
+    } else if (enemy) {
+      const d = dist(fp, fleetPos(enemy));
+      html += `<div>Target fleet <b>${short(enemy.id)}</b> of ${esc(enemy.ownerName)} <span class="dim">(${d.toFixed(1)} away)</span></div>`;
+      html += `<div class="row"><button class="primary" data-act="attack" ${d <= catalog.attackRange ? "" : "disabled"}>Attack</button><button data-act="moveFleet">Move to it</button></div>`;
+      html += `<div class="hint">Attack range is ${catalog.attackRange} units. The defender returns fire.</div>`;
+    } else if (sel.point) {
+      html += `<div>Destination <b>(${sel.point.x.toFixed(1)}, ${sel.point.y.toFixed(1)})</b> <span class="dim">${dist(fp, sel.point).toFixed(1)} away</span></div>`;
+      html += `<div class="row"><button class="primary" data-act="movePoint">Move here</button></div>`;
+    } else html += `<div class="dim">Click a planet, enemy fleet or empty space on the map.</div>`;
+  } else if (t && t.type === "planet") {
+    const p = planets().find((x) => x.id === t.id);
+    if (p) {
+      html += `<div><b>${esc(p.name)}</b> <span class="tag">${p.ownerName ? esc(p.ownerName) : "neutral"}</span></div>`;
+      html += `<div class="dim">Production ${p.production}/tick · deposit left ${num(p.resources).toLocaleString()}</div>`;
+      if (p.ownerId === myId()) {
+        html += buildHtml();
+      } else html += `<div class="hint">Select one of your fleets first to move to or colonize it.</div>`;
+    }
+  } else html += `<div class="dim">Click one of your fleets, or one of your planets to build ships.</div>`;
+
+  $("selection").innerHTML = html;
+  wireSelection(f);
+}
+function wireSelection(f) {
+  const t = sel.target;
+  const btn = (a) => document.querySelector(`[data-act="${a}"]`);
+  const go = (x, y) => order("move", { fleetId: f.id, destination: { x, y } }, "Fleet underway.");
+  if (btn("movePlanet")) btn("movePlanet").onclick = () => { const p = planets().find((x) => x.id === t.id); go(p.position.x, p.position.y); };
+  if (btn("moveFleet")) btn("moveFleet").onclick = () => { const p = fleetPos(allFleets().find((x) => x.id === t.id)); go(p.x, p.y); };
+  if (btn("movePoint")) btn("movePoint").onclick = () => go(sel.point.x, sel.point.y);
+  if (btn("colonize")) btn("colonize").onclick = () => order("colonize", { fleetId: f.id, planetId: t.id }, "Colonization ordered.");
+  if (btn("attack")) btn("attack").onclick = () => order("attack", { attackingFleetId: f.id, targetFleetId: t.id }, "Attack ordered.");
+  if (btn("build")) {
+    const upd = () => {
+      const s = catalog.ships.find((x) => x.shipType === $("bType").value), q = Math.max(1, num($("bQty").value));
+      $("bCost").textContent = `Cost ${num(s.cost) * q} (you have ${num(me.credits)})`;
+      $("bDesc").textContent = `${s.description} ⚔${s.attack} 🛡${s.defense} ♥${s.hp} speed ${s.speed}`;
+    };
+    $("bType").onchange = $("bQty").oninput = upd; upd();
+    btn("build").onclick = () => order("build", { planetId: t.id, shipType: $("bType").value, quantity: num($("bQty").value) }, "Construction started.");
+  }
+}
+
+// ---------- map ----------
+const canvas = $("map"), ctx = canvas.getContext("2d");
+const toPx = (p) => { const s = canvas.width / catalog.galaxySize; return { x: p.x * s, y: canvas.height - p.y * s }; };
+const toWorld = (px, py) => { const s = canvas.width / catalog.galaxySize; return { x: px / s, y: (canvas.height - py) / s }; };
+
+function draw() {
+  requestAnimationFrame(draw);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!catalog || !me || !galaxy) return;
+  const S = canvas.width / catalog.galaxySize, k = canvas.width / 900;
+
+  ctx.strokeStyle = "#101a33"; ctx.lineWidth = 1;
+  for (let g = 0; g <= catalog.galaxySize; g += 10) {
+    ctx.beginPath(); ctx.moveTo(g * S, 0); ctx.lineTo(g * S, canvas.height); ctx.moveTo(0, g * S); ctx.lineTo(canvas.width, g * S); ctx.stroke();
+  }
+
+  const selFleet = sel.fleet && myFleet(sel.fleet);
+  if (selFleet) { // attack-range ring
+    const p = toPx(fleetPos(selFleet));
+    ctx.strokeStyle = "rgba(248,113,113,.35)"; ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.arc(p.x, p.y, catalog.attackRange * S, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  for (const p of planets()) {
+    const c = toPx(p.position), mine = p.ownerId === myId();
+    const color = mine ? "#4ade80" : p.ownerId ? "#f87171" : "#8791a8";
+    const r = (6 + Math.min(14, p.production / 2)) * k;
+    ctx.fillStyle = color + "33"; ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7); ctx.fill(); ctx.stroke();
+    const picked = sel.target && sel.target.type === "planet" && sel.target.id === p.id;
+    if (picked) { ctx.strokeStyle = "#fff"; ctx.beginPath(); ctx.arc(c.x, c.y, r + 5, 0, 7); ctx.stroke(); }
+    if (p.ownerId || picked) { ctx.fillStyle = "#b8c4de"; ctx.font = `${12 * k}px system-ui`; ctx.fillText(p.name, c.x + r + 4, c.y + 4); }
+  }
+
+  const now = Date.now();
+  for (const f of allFleets()) {
+    const mine = f.ownerId === myId();
+    const a = toPx(fleetPos(f, now));
+    if (f.destination) {
+      const d = toPx(f.destination);
+      ctx.strokeStyle = mine ? "rgba(90,200,250,.4)" : "rgba(251,146,60,.25)"; ctx.setLineDash([4, 5]);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(d.x, d.y); ctx.stroke(); ctx.setLineDash([]);
+    }
+    const sz = 9 * k;
+    ctx.fillStyle = mine ? "#5ac8fa" : "#fb923c";
+    ctx.beginPath(); ctx.moveTo(a.x, a.y - sz); ctx.lineTo(a.x + sz * .8, a.y + sz * .7); ctx.lineTo(a.x - sz * .8, a.y + sz * .7); ctx.closePath(); ctx.fill();
+    const isSel = (mine && sel.fleet === f.id) || (sel.target && sel.target.type === "fleet" && sel.target.id === f.id);
+    if (isSel) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(a.x, a.y, sz + 6, 0, 7); ctx.stroke(); }
+  }
+
+  if (sel.point && selFleet) {
+    const p = toPx(sel.point); ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(p.x - 8, p.y - 8); ctx.lineTo(p.x + 8, p.y + 8); ctx.moveTo(p.x + 8, p.y - 8); ctx.lineTo(p.x - 8, p.y + 8); ctx.stroke();
+  }
+}
+canvas.addEventListener("click", (e) => {
+  if (!catalog || !me) return;
+  const r = canvas.getBoundingClientRect();
+  const w = toWorld((e.clientX - r.left) * canvas.width / r.width, (e.clientY - r.top) * canvas.height / r.height);
+  const pick = 3.2; // galaxy units
+  const fleet = allFleets().map((f) => ({ f, d: dist(w, fleetPos(f)) })).filter((x) => x.d < pick).sort((a, b) => a.d - b.d)[0];
+  const planet = planets().map((p) => ({ p, d: dist(w, p.position) })).filter((x) => x.d < pick + 1.5).sort((a, b) => a.d - b.d)[0];
+
+  if (fleet && fleet.f.ownerId === myId() && !(planet && sel.fleet === fleet.f.id)) sel = { fleet: fleet.f.id, target: null, point: null };
+  else if (fleet && fleet.f.ownerId === myId()) sel = { fleet: sel.fleet, target: { type: "planet", id: planet.p.id }, point: null }; // fleet parked on a planet: second click picks the planet
+  else if (fleet) sel = { fleet: sel.fleet, target: { type: "fleet", id: fleet.f.id }, point: null };
+  else if (planet) sel = { fleet: sel.fleet, target: { type: "planet", id: planet.p.id }, point: null };
+  else if (sel.fleet) sel = { fleet: sel.fleet, target: null, point: { x: Math.min(catalog.galaxySize, Math.max(0, w.x)), y: Math.min(catalog.galaxySize, Math.max(0, w.y)) } };
+  else sel = { fleet: null, target: null, point: null };
+  renderSelection();
+});
+
+// ---------- clocks ----------
+setInterval(() => {
+  if (!catalog) return;
+  const ms = catalog.tickIntervalSeconds * 1000;
+  $("hTick").textContent = Math.ceil((ms - (Date.now() % ms)) / 1000) + "s";
+}, 250);
+setInterval(() => { if (me) refresh(); }, 5000);
+draw();
+
+if (key) { api("me").then(startSession).catch(() => { key = ""; localStorage.removeItem("pv_key"); }); }
+</script>
+</body>
+</html>
