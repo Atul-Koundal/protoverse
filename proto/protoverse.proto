@@ -6,12 +6,39 @@ option go_package = "github.com/Atul-Koundal/protoverse/gen/protoverse/v1;protov
 
 import "google/protobuf/timestamp.proto";
 
+// GameService is the whole game API.
+//
+// Authentication: every method except CreateAccount, GetCatalog,
+// GetGalaxyState and GetLeaderboard needs the caller's API key in the
+// `authorization: Bearer <key>` metadata header. CreateAccount returns the key
+// (once!).
 service GameService {
+  // Sign up. Creates a player, a home planet, starting credits and a starting
+  // fleet. The returned Player carries the API key; it is never shown again.
   rpc CreateAccount(CreateAccountRequest) returns (Player);
+
+  // The caller's own view of the game: credits, planets, fleets, pending orders.
+  rpc GetMyState(GetMyStateRequest) returns (PlayerState);
+
+  // Public map of every planet and fleet.
   rpc GetGalaxyState(GetGalaxyStateRequest) returns (GalaxyState);
+
+  // Static game rules: ship types and costs, map size, ranges, tick length.
+  rpc GetCatalog(GetCatalogRequest) returns (Catalog);
+
+  // Orders. Each is queued and resolves on a tick boundary.
   rpc MoveFleet(MoveFleetRequest) returns (ActionAck);
   rpc Attack(AttackRequest) returns (ActionAck);
+  rpc BuildShip(BuildShipRequest) returns (ActionAck);
+  rpc Colonize(ColonizeRequest) returns (ActionAck);
+
+  // Everything within `radius` of `center`.
   rpc Scan(ScanRequest) returns (ScanResult);
+
+  // Top players by score.
+  rpc GetLeaderboard(GetLeaderboardRequest) returns (Leaderboard);
+
+  // Live events relevant to the authenticated player.
   rpc StreamGameState(StreamGameStateRequest) returns (stream GameEvent);
 }
 
@@ -19,6 +46,8 @@ message Player {
   string id = 1;
   string display_name = 2;
   google.protobuf.Timestamp created_at = 3;
+  // Only set in the CreateAccount response.
+  string api_key = 4;
 }
 
 message Position {
@@ -31,7 +60,11 @@ message Planet {
   string owner_id = 2;
   string name = 3;
   Position position = 4;
+  // Remaining deposit. Owned planets convert up to `production` of it into
+  // credits each tick.
   int64 resources = 5;
+  int32 production = 6;
+  string owner_name = 7;
 }
 
 message Ship {
@@ -41,18 +74,44 @@ message Ship {
   int32 attack = 4;
   int32 defense = 5;
   int32 hp = 6;
+  int32 max_hp = 7;
 }
 
 message Fleet {
   string id = 1;
   string owner_id = 2;
+  // Current position (interpolated along the route while travelling).
   Position position = 3;
   Position destination = 4;
   repeated Ship ships = 5;
+  string owner_name = 6;
+  google.protobuf.Timestamp departed_at = 7;
+  google.protobuf.Timestamp arrives_at = 8;
+  // Travel speed in galaxy units per tick (that of the slowest ship).
+  double speed = 9;
 }
 
 message CreateAccountRequest {
   string display_name = 1;
+}
+
+message GetMyStateRequest {
+}
+
+message PendingAction {
+  string id = 1;
+  string action_type = 2;
+  string description = 3;
+  google.protobuf.Timestamp execute_at = 4;
+}
+
+message PlayerState {
+  Player player = 1;
+  int64 credits = 2;
+  repeated Planet planets = 3;
+  repeated Fleet fleets = 4;
+  repeated PendingAction pending_actions = 5;
+  int64 tick = 6;
 }
 
 message GetGalaxyStateRequest {
@@ -63,6 +122,30 @@ message GalaxyState {
   repeated Fleet fleets = 2;
 }
 
+message GetCatalogRequest {
+}
+
+message ShipSpec {
+  string ship_type = 1;
+  string description = 2;
+  int32 attack = 3;
+  int32 defense = 4;
+  int32 hp = 5;
+  double speed = 6;
+  int64 cost = 7;
+  int32 build_ticks = 8;
+}
+
+message Catalog {
+  repeated ShipSpec ships = 1;
+  int32 tick_interval_seconds = 2;
+  double galaxy_size = 3;
+  double attack_range = 4;
+  double colonize_range = 5;
+  int64 current_tick = 6;
+  int32 max_build_quantity = 7;
+}
+
 message MoveFleetRequest {
   string fleet_id = 1;
   Position destination = 2;
@@ -71,6 +154,17 @@ message MoveFleetRequest {
 message AttackRequest {
   string attacking_fleet_id = 1;
   string target_fleet_id = 2;
+}
+
+message BuildShipRequest {
+  string planet_id = 1;
+  string ship_type = 2;
+  int32 quantity = 3;
+}
+
+message ColonizeRequest {
+  string fleet_id = 1;
+  string planet_id = 2;
 }
 
 message ScanRequest {
@@ -88,7 +182,28 @@ message ActionAck {
   google.protobuf.Timestamp scheduled_for = 2;
 }
 
+message GetLeaderboardRequest {
+  // Defaults to 10, capped at 50.
+  int32 limit = 1;
+}
+
+message LeaderboardEntry {
+  int32 rank = 1;
+  string player_id = 2;
+  string display_name = 3;
+  int64 score = 4;
+  int32 planets = 5;
+  int32 ships = 6;
+  int32 kills = 7;
+  int64 credits = 8;
+}
+
+message Leaderboard {
+  repeated LeaderboardEntry entries = 1;
+}
+
 message StreamGameStateRequest {
+  // Deprecated and ignored: the stream is always for the authenticated player.
   string player_id = 1;
 }
 
@@ -96,6 +211,11 @@ message GameEvent {
   oneof event {
     FleetMoved fleet_moved = 1;
     CombatResolved combat_resolved = 2;
+    ShipBuilt ship_built = 3;
+    PlanetColonized planet_colonized = 4;
+    IncomeEarned income_earned = 5;
+    ActionFailed action_failed = 6;
+    Tick tick = 7;
   }
 }
 
@@ -109,4 +229,37 @@ message CombatResolved {
   string target_fleet_id = 2;
   int32 damage_dealt = 3;
   bool target_destroyed = 4;
+  // Return fire from the defender (zero if the defender was wiped out).
+  int32 counter_damage = 5;
+  bool attacker_destroyed = 6;
+  // Credits the attacker salvaged from destroyed enemy ships.
+  int64 salvage = 7;
+  // Credits the defender salvaged if the attacker was destroyed.
+  int64 counter_salvage = 8;
+}
+
+message ShipBuilt {
+  string planet_id = 1;
+  string ship_type = 2;
+  int32 quantity = 3;
+  string fleet_id = 4;
+}
+
+message PlanetColonized {
+  string planet_id = 1;
+  string planet_name = 2;
+}
+
+message IncomeEarned {
+  int64 credits = 1;
+}
+
+message ActionFailed {
+  string action_id = 1;
+  string reason = 2;
+}
+
+// Heartbeat sent to every stream at each tick.
+message Tick {
+  int64 tick = 1;
 }
