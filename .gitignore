@@ -21,3 +21,4 @@ bin/
 Thumbs.db
 protoc.zip
 protoc_extracted/
+dump.rdb

@@ -114,3 +114,25 @@ protoverse/
 8. Tests (unit + integration)
 9. GitHub Actions CI/CD
 10. Demo polish (README, diagram, recording)
+
+## 10. Phases 11-17: from backend to playable game
+
+**Economy.** `players.credits` is the spendable balance. `planets.resources` is a planet's remaining *deposit*; `planets.production` is how much of it an owned planet converts to credits per tick (`LEAST(production, resources)`). Income is one set-based SQL statement per tick (`TxCollectIncome`), claimed through the `ticks` table so several engine replicas pay out exactly once.
+
+**Accounts.** `CreateAccount` generates a random key, stores only its SHA-256, and in one transaction creates the player, a home planet, a starting fleet and starting credits. Keys are high-entropy random strings, so an unsalted fast hash is appropriate and lets lookups use a plain unique index.
+
+**Auth.** gRPC unary and stream interceptors resolve `authorization: Bearer <key>` to a player and put it in the context. A small allow-list (`CreateAccount`, `GetCatalog`, `GetGalaxyState`, `GetLeaderboard`, gRPC reflection) is public. Handlers verify ownership; someone else's fleet is reported as "not found" rather than "forbidden", so IDs can't be probed.
+
+**Orders and validation happen twice.** The API validates for fast feedback (range, ownership, funds); the engine re-validates when the order resolves, because the world moves in between. A resolver must decide validity *before* writing — a `fail(...)` outcome commits the transaction, so it must not have changed state (the one deliberate exception is the build refund).
+
+**Movement.** Travel time is `ceil(distance / slowest ship speed)` ticks. `fleets.dest_*`, `departed_at`, `arrives_at` are set when the order is placed so every client can interpolate position (`Fleet.PositionAt`); `pos_*` jumps to the destination when the move resolves.
+
+**Combat 2.0.** Volley = attacker total attack − defender total defense (±10%). A defender that survives fires back using its pre-damage strength. The victor of each exchange salvages 50% of the cost of destroyed ships. Locks are taken in fleet-ID order to avoid deadlocks between opposing attacks.
+
+**Constraints as game rules.** Partial unique indexes (`uq_pending_move_per_fleet`, `uq_pending_attack_per_fleet`, `uq_pending_colonize_per_planet`) make "one pending order of that kind" a database guarantee.
+
+**Events.** The engine collects events during a transaction and publishes after commit. Each carries the list of player IDs allowed to see it; the API's stream handler filters on that, and an empty list means broadcast (the tick heartbeat). Unknown event types are skipped, so a newer engine can't break an older API.
+
+**Recovery.** Postgres is the source of truth. Each tick the engine also resolves any pending action overdue by more than three ticks, covering "popped from Redis, then crashed" and "Redis lost its data". Resolving is idempotent (a resolved action is skipped), so double delivery is harmless.
+
+**Clients.** Browsers can't speak gRPC, so `cmd/web` is a stateless gateway: JSON request in → gRPC call with the player's key → protojson out, plus Server-Sent Events for the stream. The single-page client is embedded in the binary (`go:embed`). `cmd/pvctl` talks gRPC directly.

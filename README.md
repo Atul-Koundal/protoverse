@@ -2,28 +2,9 @@
 
 [![CI](https://github.com/Atul-Koundal/protoverse/actions/workflows/ci.yml/badge.svg)](https://github.com/Atul-Koundal/protoverse/actions/workflows/ci.yml)
 
-Tick-based space strategy game backend built in Go. Players command fleets via gRPC; commands queue in Redis and resolve on a fixed tick by a background worker, with state in PostgreSQL and live updates via Redis pub/sub. Inspired by [Schemaverse](https://github.com/Abstrct/Schemaverse)  reimagined as a real distributed system.
+A complete, playable **tick-based space strategy game** built in Go. Claim planets, mine credits, build fleets, fight other commanders and climb the leaderboard — from a browser, a command-line client, or raw gRPC. Commands queue in Redis and resolve on a fixed tick by a background worker, with state in PostgreSQL and live updates via Redis pub/sub. Inspired by [Schemaverse](https://github.com/Abstrct/Schemaverse), reimagined as a real distributed system.
 
-## Architecture
-
-Client --gRPC--> API server --validate against Postgres--> write to Redis queue (scored by execute_at)
-|
-Tick engine (every 10s)
-|
-Postgres (apply) + Redis pub/sub (broadcast)
-|
-Client (gRPC server-stream, live updates)
-
-
-- **Go** — gRPC API server, concurrent tick engine
-- **PostgreSQL** — durable game state (players, fleets, ships, actions, combat logs)
-- **Redis** — action queue (sorted set), pub/sub for live updates, and a short-TTL read cache
-- **Docker Compose** — full local stack (Postgres, Redis, migrations, API, tick engine) via one command
-- **GitHub Actions** — lint, test (with Postgres/Redis service containers), and Docker image build/push to GHCR
-
-Full design rationale in [`docs/DESIGN.md`](docs/DESIGN.md). Stack-by-stack learning notes and a full debugging log in [`LEARNING_GUIDE.md`](LEARNING_GUIDE.md).
-
-## Quick start
+## Play it
 
 ```bash
 git clone https://github.com/Atul-Koundal/protoverse.git
@@ -31,26 +12,51 @@ cd protoverse
 docker compose up --build
 ```
 
-This starts Postgres, Redis, runs migrations once, then starts the API server (`:50051`) and the tick engine. See [`LEARNING_GUIDE.md`](LEARNING_GUIDE.md) for a manual (non-Compose) run mode useful for debugging one service at a time.
+Then open **http://localhost:8080**, pick a commander name, and save the API key it shows you (it is displayed once). You start with 500 credits, a home planet that pays 20 credits per tick, and a small fleet. See **[`docs/GAMEPLAY.md`](docs/GAMEPLAY.md)** for the rules and a first-ten-minutes walkthrough.
 
-## Demo
-
-With the stack running, open a second terminal:
+Prefer a terminal? Build the CLI and play there:
 
 ```bash
-# Create a player
-grpcurl -plaintext -d '{"display_name": "your_name"}' localhost:50051 protoverse.v1.GameService/CreateAccount
-
-# Watch live game events (leave this running in its own terminal)
-grpcurl -plaintext -d '{"player_id": "any-id"}' localhost:50051 protoverse.v1.GameService/StreamGameState
-
-# In a third terminal, fire a command and watch it appear in the stream ~10s later
-grpcurl -plaintext -d '{"fleet_id": "<a-fleet-id>", "destination": {"x": 50, "y": 50}}' localhost:50051 protoverse.v1.GameService/MoveFleet
+go build -o pvctl ./cmd/pvctl
+./pvctl register your_name     # saves your key to ~/.protoverse/key
+./pvctl status                 # credits, planets, fleets, pending orders
+./pvctl map                    # ASCII galaxy map + neutral planets to claim
+./pvctl build <planet> fighter 2
+./pvctl move <fleet> 50 50
+./pvctl watch                  # live event feed
 ```
 
-The `StreamGameState` call above is the best single thing to demo : it shows the full pipeline (command → gRPC → Postgres → Redis queue → tick engine → Redis pub/sub → live gRPC stream) working end to end.
+## Architecture
 
-## Running tests
+```
+Browser ──HTTP/SSE──> web gateway ──┐
+pvctl / grpcurl ────────────────────┴─gRPC──> API server ──validate+persist──> Postgres
+                                                  │                               ▲
+                                        enqueue (sorted set by execute_at)        │ apply (one tx per action)
+                                                  ▼                               │
+                                                Redis ──────> Tick engine (every 10s)
+                                                  ▲                │
+                                                  └── pub/sub ─────┘  events → API → player's gRPC stream
+```
+
+- **Go** — gRPC API server, tick engine, HTTP gateway, CLI
+- **PostgreSQL** — durable game state; the source of truth (players, planets, fleets, ships, actions, combat logs)
+- **Redis** — action queue (sorted set), pub/sub for live per-player events, short-TTL read caches
+- **Docker Compose** — full local stack (Postgres, Redis, migrations, API, tick engine, web) in one command
+- **GitHub Actions** — lint, test (with Postgres/Redis service containers), Docker image build/push to GHCR
+
+Design rationale: [`docs/DESIGN.md`](docs/DESIGN.md). Game rules: [`docs/GAMEPLAY.md`](docs/GAMEPLAY.md). Learning notes and debugging log: [`LEARNING_GUIDE.md`](LEARNING_GUIDE.md).
+
+### Engineering highlights
+
+- **Atomic everything.** Resolving an action — damage, ship deletion, salvage credits, combat log, status change — is one Postgres transaction. Buying a ship deducts credits and records the order in one transaction, using a single guarded `UPDATE … WHERE credits >= cost` so two concurrent purchases can't both spend the same balance.
+- **Events are published after commit**, never inside the transaction, so a rolled-back resolution can't leak a phantom event.
+- **Safe with several tick engines.** Income is claimed per tick through a `ticks` table (`INSERT … ON CONFLICT DO NOTHING`); fleets are locked in ID order so opposing attacks can't deadlock; the Redis pop is a Lua script.
+- **Redis can lose data without losing orders.** Postgres holds every pending action; the engine also resolves anything overdue by more than three ticks straight from the database.
+- **Anti-exploit rules live in the database**: partial unique indexes allow at most one pending move or attack per fleet, so spamming 50 attacks in one tick can't multiply damage — no matter how many API replicas race.
+- **API keys are stored hashed** (SHA-256) and shown once; every private RPC is behind a gRPC interceptor; fleet/planet ownership is checked on every order and re-checked when it resolves.
+
+## Running the tests
 
 ```bash
 export DB_URL="postgres://postgres:devpass@localhost:5433/protoverse?sslmode=disable"
@@ -58,26 +64,56 @@ export REDIS_ADDR="localhost:6379"
 go test ./... -v
 ```
 
-Tests run automatically in CI on every push, against throwaway Postgres/Redis service containers (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+With `docker compose up postgres redis migrate` running, this exercises the full game against real Postgres and Redis: accounts and auth, building, travel, colonizing, combat with return fire and salvage, income, the leaderboard, and per-player stream privacy. Without those variables set, the integration tests skip and the unit tests still run. CI runs everything on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+
+## Talking to the API directly
+
+```bash
+# Sign up (the response contains your api_key — shown once)
+grpcurl -plaintext -d '{"display_name": "your_name"}' localhost:50051 protoverse.v1.GameService/CreateAccount
+
+# Everything else needs: -H 'authorization: Bearer <key>'
+grpcurl -plaintext -H 'authorization: Bearer pv_...' localhost:50051 protoverse.v1.GameService/GetMyState
+grpcurl -plaintext -H 'authorization: Bearer pv_...' -d '{"planet_id": "<id>", "ship_type": "fighter", "quantity": 2}' \
+  localhost:50051 protoverse.v1.GameService/BuildShip
+grpcurl -plaintext -H 'authorization: Bearer pv_...' localhost:50051 protoverse.v1.GameService/StreamGameState
+```
+
+| RPC | Auth | What it does |
+|---|---|---|
+| `CreateAccount` | public | Sign up; returns the API key once. Grants a home planet, credits and a starting fleet. |
+| `GetCatalog` | public | Ship stats and costs, galaxy size, ranges, tick length. |
+| `GetGalaxyState` | public | Every planet and fleet (cached for a few seconds). |
+| `GetLeaderboard` | public | Top players by score. |
+| `GetMyState` | key | Your credits, planets, fleets and pending orders. |
+| `MoveFleet` | key | Send a fleet; travel time depends on distance and its slowest ship. |
+| `Attack` | key | Attack an enemy fleet within range; the defender returns fire. |
+| `BuildShip` | key | Spend credits to build ships at one of your planets. |
+| `Colonize` | key | Use a colony ship to claim a neutral planet. |
+| `Scan` | key | Everything within a radius of a point. |
+| `StreamGameState` | key | Live events about *you* (plus a per-tick heartbeat). |
 
 ## Project layout
 
-protoverse/
-proto/ gRPC service definition
-gen/ generated Go code from the proto
-cmd/api/ API server entrypoint
-cmd/tickengine/ Tick engine entrypoint
-internal/domain/ Core entities
-internal/repository/ Postgres access layer
-internal/queue/ Redis action queue
-internal/cache/ Redis read cache
-internal/tickengine/ Tick resolution logic (move, combat)
-internal/server/ gRPC handlers
-db/migrations/ Postgres schema migrations
-docker-compose.yml
-Dockerfile
-.github/workflows/ci.yml
-
+```
+proto/                gRPC service definition
+gen/                  generated Go code from the proto
+cmd/api/              API server (gRPC + auth interceptors + galaxy seeding)
+cmd/tickengine/       Tick engine
+cmd/web/              Browser client + HTTP/SSE gateway
+cmd/pvctl/            Command-line client
+internal/domain/      Entities and pure game rules (ship catalog, geometry, scoring)
+internal/galaxy/      Deterministic map generation and spawn placement
+internal/auth/        API keys and gRPC auth interceptors
+internal/events/      Event types shared by engine and API
+internal/repository/  Postgres access layer
+internal/queue/       Redis action queue
+internal/cache/       Redis read cache
+internal/tickengine/  Tick resolution (move, attack, build, colonize, income)
+internal/server/      gRPC handlers
+internal/web/         HTTP gateway and embedded single-page client
+db/migrations/        Postgres schema migrations
+```
 
 ## Status
 
@@ -93,11 +129,20 @@ Dockerfile
 | 8 | Unit + integration test suite | Done |
 | 9 | GitHub Actions CI — lint, test, build & push to GHCR | Done |
 | 10 | README, demo polish | Done |
+| 11 | Economy: credits, planet production, seeded galaxy, home planet + starting fleet | Done |
+| 12 | Authentication: hashed API keys, gRPC interceptors, ownership checks | Done |
+| 13 | Ship catalog, `BuildShip`, travel time, `Colonize` | Done |
+| 14 | Combat 2.0: return fire, salvage, one-pending-attack rule | Done |
+| 15 | Per-player event stream; post-commit events; stale-action recovery; once-per-tick income | Done |
+| 16 | Leaderboard and `Scan` | Done |
+| 17 | Web client (HTTP/SSE gateway) and `pvctl` CLI | Done |
 
 Full phase-by-phase build order in [`BUILD_ORDER.md`](BUILD_ORDER.md).
 
 ## Known simplifications (honest, not hidden)
 
-- `StreamGameState` broadcasts every event to every connected client , it accepts a `player_id` but doesn't yet filter by fleet ownership.
-- Combat is intentionally simple (`attack - defense`, ±10% variance) , no ship types with distinct roles, no resource/economy layer yet.
-- Single tick-engine instance in practice; the code (atomic Redis pop + row-level Postgres locking) is designed to be safe for multiple replicas, but this hasn't been load-tested with more than one running concurrently.
+- Planets can only change hands by colonizing neutral ones; there is no planetary assault or defense yet.
+- Combat is still the simple `attack − defense` model (±10% variance, with return fire); ship types differ in stats and cost but have no special abilities.
+- No rate limiting or per-IP sign-up throttling, and the gRPC/HTTP listeners are plaintext — put a TLS-terminating proxy in front for anything public.
+- The leaderboard is computed in SQL + Go on demand (cached 5s); fine for hundreds of players, but would want a materialized table for many thousands.
+- Multi-replica safety is designed in (see highlights) and tested at the unit/integration level, but not load-tested with several engines running concurrently.
