@@ -252,3 +252,101 @@ func (s *GameServer) Colonize(ctx context.Context, req *protoversev1.ColonizeReq
 	s.enqueue(ctx, action)
 	return ack(action), nil
 }
+
+func (s *GameServer) InvadePlanet(ctx context.Context, req *protoversev1.InvadePlanetRequest) (*protoversev1.ActionAck, error) {
+	player, err := auth.RequirePlayer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fleet, err := s.loadOwnedFleet(ctx, player, req.GetFleetId(), "fleet_id")
+	if err != nil {
+		return nil, err
+	}
+	planetID, err := uuid.Parse(req.GetPlanetId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid planet_id: %v", err)
+	}
+	planet, err := s.Repo.GetPlanetByID(ctx, planetID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to load planet: %v", err)
+	}
+	switch {
+	case planet == nil:
+		return nil, status.Error(codes.NotFound, "planet not found")
+	case planet.OwnerID == nil:
+		return nil, status.Error(codes.FailedPrecondition, "that planet is unowned — use Colonize instead")
+	case *planet.OwnerID == player.ID:
+		return nil, status.Error(codes.InvalidArgument, "you cannot invade your own planet")
+	}
+
+	// Early feedback only: the tick engine re-checks all of this when the
+	// assault resolves, because the world keeps changing in between.
+	owned, err := s.Repo.CountPlanetsOwned(ctx, *planet.OwnerID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to check planet ownership: %v", err)
+	}
+	if owned <= 1 {
+		return nil, status.Error(codes.FailedPrecondition, "that commander's last planet is protected")
+	}
+	now := time.Now()
+	fx, fy := fleet.PositionAt(now)
+	if dist := domain.Distance(fx, fy, planet.PosX, planet.PosY); dist > domain.AttackRange {
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"planet is out of range (%.1f away, attack range is %.0f)", dist, domain.AttackRange)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"fleet_id":  fleet.ID.String(),
+		"planet_id": planet.ID.String(),
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to encode payload: %v", err)
+	}
+	action, err := s.Repo.CreateAction(ctx, player.ID, "invade", payload, domain.ExecuteAfterTicks(now, 1))
+	if err != nil {
+		return nil, mapActionErr(err, "that fleet already has an invasion queued")
+	}
+	s.enqueue(ctx, action)
+	return ack(action), nil
+}
+
+func (s *GameServer) FortifyPlanet(ctx context.Context, req *protoversev1.FortifyPlanetRequest) (*protoversev1.ActionAck, error) {
+	player, err := auth.RequirePlayer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	planetID, err := uuid.Parse(req.GetPlanetId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid planet_id: %v", err)
+	}
+	planet, err := s.Repo.GetPlanetByID(ctx, planetID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to load planet: %v", err)
+	}
+	if planet == nil || planet.OwnerID == nil || *planet.OwnerID != player.ID {
+		return nil, status.Error(codes.NotFound, "planet not found among your planets")
+	}
+	if planet.DefenseLevel >= domain.MaxDefenseLevel {
+		return nil, status.Errorf(codes.FailedPrecondition, "planet is already at maximum defense (level %d)", domain.MaxDefenseLevel)
+	}
+
+	cost := domain.FortifyCost(planet.DefenseLevel)
+	payload, err := json.Marshal(map[string]any{
+		"planet_id": planet.ID.String(),
+		"cost":      cost,
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to encode payload: %v", err)
+	}
+	executeAt := domain.ExecuteAfterTicks(time.Now(), domain.FortifyTicks)
+	action, err := s.Repo.CreateChargedAction(ctx, player.ID, cost, "fortify", payload, executeAt)
+	if err != nil {
+		if errors.Is(err, repository.ErrInsufficientCredits) {
+			return nil, status.Error(codes.FailedPrecondition,
+				fmt.Sprintf("not enough credits: fortifying to level %d costs %d", planet.DefenseLevel+1, cost))
+		}
+		return nil, mapActionErr(err, "that planet is already being fortified")
+	}
+	s.enqueue(ctx, action)
+	return ack(action), nil
+}

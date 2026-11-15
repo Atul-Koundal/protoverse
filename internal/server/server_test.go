@@ -50,6 +50,7 @@ func TestToProtoEventCoversEveryType(t *testing.T) {
 	for _, typ := range []string{
 		events.TypeFleetMoved, events.TypeCombatResolved, events.TypeShipBuilt,
 		events.TypePlanetColonized, events.TypeIncome, events.TypeActionFailed, events.TypeTick,
+		events.TypePlanetBattle, events.TypePlanetFortified,
 	} {
 		if toProtoEvent(events.Event{Type: typ}) == nil {
 			t.Errorf("event type %q has no gRPC mapping", typ)
@@ -63,6 +64,8 @@ func TestDescribeAction(t *testing.T) {
 		"attack":   `{"attacking_fleet_id":"12345678-aaaa","target_fleet_id":"87654321-bbbb"}`,
 		"build":    `{"planet_id":"12345678-aaaa","ship_type":"scout","quantity":2}`,
 		"colonize": `{"fleet_id":"12345678-aaaa","planet_id":"87654321-bbbb"}`,
+		"invade":   `{"fleet_id":"12345678-aaaa","planet_id":"87654321-bbbb"}`,
+		"fortify":  `{"planet_id":"87654321-bbbb"}`,
 	}
 	for typ, payload := range cases {
 		got := describeAction(domain.Action{ActionType: typ, Payload: []byte(payload)})

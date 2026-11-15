@@ -51,6 +51,26 @@ func toProtoEvent(ev events.Event) *protoversev1.GameEvent {
 			ActionId: ev.ActionID,
 			Reason:   ev.Reason,
 		}}}
+	case events.TypePlanetBattle:
+		return &protoversev1.GameEvent{Event: &protoversev1.GameEvent_PlanetBattle{PlanetBattle: &protoversev1.PlanetBattle{
+			PlanetId:          ev.PlanetID,
+			PlanetName:        ev.PlanetName,
+			FleetId:           ev.FleetID,
+			DamageToPlanet:    ev.DamageToPlanet,
+			DamageToFleet:     ev.DamageToFleet,
+			ShieldAfter:       ev.ShieldAfter,
+			Captured:          ev.Captured,
+			AttackerDestroyed: ev.AttackerDestroyed,
+			AttackerPlayerId:  ev.AttackerPlayerID,
+			DefenderPlayerId:  ev.DefenderPlayerID,
+		}}}
+	case events.TypePlanetFortified:
+		return &protoversev1.GameEvent{Event: &protoversev1.GameEvent_PlanetFortified{PlanetFortified: &protoversev1.PlanetFortified{
+			PlanetId:   ev.PlanetID,
+			PlanetName: ev.PlanetName,
+			NewLevel:   ev.NewLevel,
+			Shield:     ev.Shield,
+		}}}
 	case events.TypeTick:
 		return &protoversev1.GameEvent{Event: &protoversev1.GameEvent_Tick{Tick: &protoversev1.Tick{Tick: ev.Tick}}}
 	}

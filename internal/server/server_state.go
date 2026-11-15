@@ -100,6 +100,10 @@ func describeAction(a domain.Action) string {
 		return fmt.Sprintf("build %v x %v at planet %s", p["quantity"], p["ship_type"], short("planet_id"))
 	case "colonize":
 		return fmt.Sprintf("fleet %s colonizes planet %s", short("fleet_id"), short("planet_id"))
+	case "invade":
+		return fmt.Sprintf("fleet %s invades planet %s", short("fleet_id"), short("planet_id"))
+	case "fortify":
+		return fmt.Sprintf("fortify planet %s", short("planet_id"))
 	}
 	return a.ActionType
 }
@@ -113,6 +117,9 @@ func (s *GameServer) GetCatalog(_ context.Context, _ *protoversev1.GetCatalogReq
 		ColonizeRange:       domain.ColonizeRange,
 		CurrentTick:         domain.TickNumber(time.Now()),
 		MaxBuildQuantity:    domain.MaxBuildQuantity,
+		MaxDefenseLevel:     domain.MaxDefenseLevel,
+		ShieldRegenPerTick:  domain.ShieldRegenPerTick,
+		FortifyBaseCost:     domain.FortifyCost(0),
 	}
 	for _, sp := range domain.ShipCatalog() {
 		cat.Ships = append(cat.Ships, &protoversev1.ShipSpec{
@@ -163,6 +170,7 @@ func (s *GameServer) GetLeaderboard(ctx context.Context, req *protoversev1.GetLe
 				Planets:     int32(st.Planets),
 				Ships:       int32(st.Ships),
 				Kills:       int32(st.Kills),
+				Captures:    int32(st.Captures),
 				Credits:     st.Credits,
 			})
 		}

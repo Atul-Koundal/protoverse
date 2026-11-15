@@ -155,6 +155,10 @@ func planetToProto(p *domain.Planet, names map[uuid.UUID]string) *protoversev1.P
 		Position:   &protoversev1.Position{X: p.PosX, Y: p.PosY},
 		Resources:  p.Resources,
 		Production: int32(p.Production),
+
+		DefenseLevel: int32(p.DefenseLevel),
+		Shield:       int32(p.Shield),
+		MaxShield:    int32(p.MaxShield()),
 	}
 	if p.OwnerID != nil {
 		out.OwnerId = p.OwnerID.String()
