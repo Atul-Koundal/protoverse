@@ -20,6 +20,7 @@ Signing up gives you:
 | fighter | 150 | 8 | 3 | 40 | 12 | 2 | Balanced workhorse |
 | cruiser | 500 | 20 | 10 | 120 | 8 | 4 | Slow, tough, hard-hitting |
 | colony | 800 | 0 | 2 | 60 | 6 | 5 | Claims a neutral planet, consumed doing so |
+| trooper | 300 | 1 | 1 | 30 | 10 | 3 | Marines: captures an enemy planet whose shield is down, consumed doing so |
 
 (`GetCatalog` / `pvctl catalog` always shows the live numbers.)
 
@@ -33,6 +34,30 @@ Signing up gives you:
 
 **Colonize** — a fleet containing a colony ship, within 5 units of an *unowned* planet. The colony ship is consumed and the planet becomes yours; from the next tick it pays out its production rate until its deposit runs dry.
 
+**Invade** — your fleet vs an enemy **planet** within 10 units. See *Planets under siege* below.
+
+**Fortify** — spend credits to raise one of your planets by one defense level (cost `200 × (current level + 1)`, takes 2 ticks). It adds shield immediately when it completes.
+
+## Planets under siege
+
+Every planet has a **defense level** (0–10) and a **shield**. Neutral planets are level 0; homeworlds start at level 2. Higher levels mean more armour, firepower and shield:
+
+| | formula | level 0 | level 2 (homeworld) | level 10 |
+|---|---|---|---|---|
+| max shield | 50 + 40 × level | 50 | 130 | 450 |
+| armour (subtracted from your attack) | 3 + 2 × level | 3 | 7 | 23 |
+| firepower (against your fleet) | 10 + 8 × level | 10 | 26 | 90 |
+
+An **invasion** is one exchange each tick you order it:
+
+1. Your fleet's total attack, minus the planet's armour (±10%), drains the planet's **shield**.
+2. The planet fires back at your fleet, using your fleet's total defense as armour. If its guns destroy ships, the planet's owner **salvages** half their cost.
+3. If the shield hit **0** and your fleet still has a **trooper**, the trooper is consumed and the planet is **captured**: it keeps one fewer defense level and starts at a quarter of its new maximum shield — so expect a counter-attack.
+
+Without a trooper you can still bombard a planet's shield, but you can't take it. Shields **regenerate 5 per tick**, so an assault has to be concentrated: bring enough firepower to breach the shield in one or two volleys, plus a trooper, and enough armour to survive the return fire. Fortifying makes this far more expensive for attackers, which is what makes it worth the credits.
+
+**Sanctuary rule:** a commander's *last* planet cannot be invaded, so nobody can be wiped off the map and everyone can rebuild. A fleet can have only one invasion queued at a time, and a planet only one fortification.
+
 ## Economy
 
 Each planet has a **production** rate (credits/tick) and a finite **deposit**. Every tick an owned planet converts up to its production out of its deposit into your credits. Neutral planets have 2,000–10,000 deposits and produce 5–25/tick — worth taking early. Your home planet's deposit is effectively bottomless.
@@ -43,6 +68,7 @@ Each planet has a **production** rate (credits/tick) and a finite **deposit**. E
 100 per planet owned
  10 per ship alive
  50 per enemy fleet destroyed (including by return fire)
+ 75 per enemy planet captured
   1 per 10 damage dealt
   1 per 100 credits banked
 ```

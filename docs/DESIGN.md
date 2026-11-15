@@ -136,3 +136,17 @@ protoverse/
 **Recovery.** Postgres is the source of truth. Each tick the engine also resolves any pending action overdue by more than three ticks, covering "popped from Redis, then crashed" and "Redis lost its data". Resolving is idempotent (a resolved action is skipped), so double delivery is harmless.
 
 **Clients.** Browsers can't speak gRPC, so `cmd/web` is a stateless gateway: JSON request in → gRPC call with the player's key → protojson out, plus Server-Sent Events for the stream. The single-page client is embedded in the binary (`go:embed`). `cmd/pvctl` talks gRPC directly.
+
+## 11. Phase 18: planetary conquest and defense
+
+**Model.** A planet has `defense_level` (0–10) and `shield`. Level sets max shield (`50 + 40L`), armour (`3 + 2L`) and firepower (`10 + 8L`); all three are pure functions in `internal/domain/defense.go`. Shields regenerate by a flat 5 per tick inside the same once-per-tick transaction that pays income, so regeneration is also exactly-once with several engines. The SQL cap (`50 + 40 * defense_level`) duplicates the Go formula; an integration test checks all eleven levels cap at exactly `domain.MaxShield`.
+
+**Assault resolution** (`resolveInvade`). Lock fleet then planet (same order as colonize), validate everything, then: damage the shield, fire the planet's guns at the fleet, credit the defender's salvage, and — only if the shield is 0, the fleet survived, and a trooper is still alive (re-read after the return fire, since the guns may have killed it) — consume the trooper and transfer the planet. One transaction, one `planet_battles` row, one event to each side.
+
+**Why troopers, and why a shield that regenerates.** Capture needs a dedicated, consumable unit so conquest has a real cost and takes planning (breach and board in the same volley), and regeneration punishes drip-feed attacks. Captured planets drop a level and a quarter of the shield so conquests are contestable.
+
+**Sanctuary.** `owned <= 1` blocks invasion. It's checked when the order is placed (fast feedback) and again inside the resolving transaction, where the count is authoritative: two attackers racing for a player's second-to-last planet can't both succeed in leaving them with zero.
+
+**Anti-spam.** `uq_pending_invade_per_fleet` and `uq_pending_fortify_per_planet` partial unique indexes. For fortify the charge and the order are one transaction, so a rejected duplicate never costs credits.
+
+**Known limits.** Planets never shoot at fleets that merely pass by, there are no orbital garrisons, and an attacker can't see a planet's exact shield history. Battle details are in `planet_battles` but nothing exposes them to players beyond live events.

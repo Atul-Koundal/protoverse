@@ -23,6 +23,8 @@ go build -o pvctl ./cmd/pvctl
 ./pvctl map                    # ASCII galaxy map + neutral planets to claim
 ./pvctl build <planet> fighter 2
 ./pvctl move <fleet> 50 50
+./pvctl invade <fleet> <planet> # assault an enemy planet (bring troopers!)
+./pvctl fortify <planet>       # raise a planet's defense level
 ./pvctl watch                  # live event feed
 ```
 
@@ -54,6 +56,7 @@ Design rationale: [`docs/DESIGN.md`](docs/DESIGN.md). Game rules: [`docs/GAMEPLA
 - **Safe with several tick engines.** Income is claimed per tick through a `ticks` table (`INSERT … ON CONFLICT DO NOTHING`); fleets are locked in ID order so opposing attacks can't deadlock; the Redis pop is a Lua script.
 - **Redis can lose data without losing orders.** Postgres holds every pending action; the engine also resolves anything overdue by more than three ticks straight from the database.
 - **Anti-exploit rules live in the database**: partial unique indexes allow at most one pending move or attack per fleet, so spamming 50 attacks in one tick can't multiply damage — no matter how many API replicas race.
+- **Conquest is just another transactional order.** An assault — shield damage, the planet's return fire, trooper consumption, the ownership change, salvage and the battle log — commits atomically or not at all; "last planet is protected" is re-checked at resolution time, not just when the order is placed.
 - **API keys are stored hashed** (SHA-256) and shown once; every private RPC is behind a gRPC interceptor; fleet/planet ownership is checked on every order and re-checked when it resolves.
 
 ## Running the tests
@@ -90,6 +93,8 @@ grpcurl -plaintext -H 'authorization: Bearer pv_...' localhost:50051 protoverse.
 | `Attack` | key | Attack an enemy fleet within range; the defender returns fire. |
 | `BuildShip` | key | Spend credits to build ships at one of your planets. |
 | `Colonize` | key | Use a colony ship to claim a neutral planet. |
+| `InvadePlanet` | key | Assault an enemy planet; troopers capture it once its shield is down. |
+| `FortifyPlanet` | key | Spend credits to raise one of your planets' defense level. |
 | `Scan` | key | Everything within a radius of a point. |
 | `StreamGameState` | key | Live events about *you* (plus a per-tick heartbeat). |
 
@@ -136,12 +141,13 @@ db/migrations/        Postgres schema migrations
 | 15 | Per-player event stream; post-commit events; stale-action recovery; once-per-tick income | Done |
 | 16 | Leaderboard and `Scan` | Done |
 | 17 | Web client (HTTP/SSE gateway) and `pvctl` CLI | Done |
+| 18 | Planetary conquest and defense: shields, return fire, troopers, fortify, sanctuary rule | Done |
 
 Full phase-by-phase build order in [`BUILD_ORDER.md`](BUILD_ORDER.md).
 
 ## Known simplifications (honest, not hidden)
 
-- Planets can only change hands by colonizing neutral ones; there is no planetary assault or defense yet.
+- Planets are defended passively: they shoot back when invaded but never attack fleets that merely fly past. There are no defensive fleets-in-orbit or alliances.
 - Combat is still the simple `attack − defense` model (±10% variance, with return fire); ship types differ in stats and cost but have no special abilities.
 - No rate limiting or per-IP sign-up throttling, and the gRPC/HTTP listeners are plaintext — put a TLS-terminating proxy in front for anything public.
 - The leaderboard is computed in SQL + Go on demand (cached 5s); fine for hundreds of players, but would want a materialized table for many thousands.

@@ -21,3 +21,4 @@ The project was built in phases. Each phase leaves the repo compiling, tested an
 | 15 | Reliability | Events published after commit; ordered fleet locking; stale-action recovery from Postgres; once-per-tick income via `ticks` table; per-player stream filtering |
 | 16 | Competition | Score formula, `GetLeaderboard`, `Scan` |
 | 17 | Clients | HTTP/SSE gateway with embedded browser client (`cmd/web`) and CLI (`cmd/pvctl`) |
+| 18 | Conquest & defense | Migration `0003`: planet defense level + regenerating shield, `planet_battles`; `InvadePlanet` / `FortifyPlanet`; trooper ship; sanctuary rule; capture scoring |
