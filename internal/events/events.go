@@ -17,6 +17,8 @@ const (
 	TypeIncome          = "income"
 	TypeActionFailed    = "action_failed"
 	TypeTick            = "tick"
+	TypePlanetBattle    = "planet_battle"
+	TypePlanetFortified = "planet_fortified"
 )
 
 // Event is a flat union of every event shape; Type says which fields apply.
@@ -47,6 +49,18 @@ type Event struct {
 	PlanetName string `json:"planet_name,omitempty"`
 	ShipType   string `json:"ship_type,omitempty"`
 	Quantity   int32  `json:"quantity,omitempty"`
+
+	// planet_battle (also uses PlanetID, PlanetName, FleetID and AttackerDestroyed)
+	AttackerPlayerID string `json:"attacker_player_id,omitempty"`
+	DefenderPlayerID string `json:"defender_player_id,omitempty"`
+	DamageToPlanet   int32  `json:"damage_to_planet,omitempty"`
+	DamageToFleet    int32  `json:"damage_to_fleet,omitempty"`
+	ShieldAfter      int32  `json:"shield_after,omitempty"`
+	Captured         bool   `json:"captured,omitempty"`
+
+	// planet_fortified: PlanetID / PlanetName plus
+	NewLevel int32 `json:"new_level,omitempty"`
+	Shield   int32 `json:"shield,omitempty"`
 
 	// income
 	Credits int64 `json:"credits,omitempty"`

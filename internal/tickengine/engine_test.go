@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -477,5 +478,377 @@ func TestSalvageValue(t *testing.T) {
 	}
 	if salvageValue(nil) != 0 || salvageValue([]string{"unknown"}) != 0 {
 		t.Error("empty/unknown wrecks salvage nothing")
+	}
+}
+
+// ---- planetary conquest & defense ----------------------------------------
+
+func setDefense(t *testing.T, repo *repository.Repository, planet uuid.UUID, level, shield int) {
+	t.Helper()
+	_, err := repo.Pool.Exec(context.Background(),
+		`UPDATE planets SET defense_level = $1, shield = $2 WHERE id = $3`, level, shield, planet)
+	if err != nil {
+		t.Fatalf("setDefense: %v", err)
+	}
+}
+
+func getPlanet(t *testing.T, repo *repository.Repository, id uuid.UUID) *domain.Planet {
+	t.Helper()
+	p, err := repo.GetPlanetByID(context.Background(), id)
+	if err != nil || p == nil {
+		t.Fatalf("GetPlanetByID: %v", err)
+	}
+	return p
+}
+
+// invadeSetup creates an attacker with a fleet next to a defended enemy planet.
+// The defender owns two planets so the sanctuary rule doesn't apply.
+type invadeSetup struct {
+	attacker, defender *uuid.UUID
+	fleet              uuid.UUID
+	target, spare      uuid.UUID
+}
+
+func newInvadeSetup(t *testing.T, repo *repository.Repository, level, shield int, ships ...[4]int) invadeSetup {
+	t.Helper()
+	ctx := context.Background()
+	s := invadeSetup{attacker: newPlayer(t, repo, "inv_a"), defender: newPlayer(t, repo, "inv_d")}
+	s.target = insertPlanet(t, repo, s.defender, 40, 40, 5000, 10)
+	s.spare = insertPlanet(t, repo, s.defender, 90, 10, 5000, 10)
+	setDefense(t, repo, s.target, level, shield)
+	f, err := repo.CreateFleet(ctx, *s.attacker, 42, 42) // ~2.8 from the planet
+	if err != nil {
+		t.Fatalf("CreateFleet: %v", err)
+	}
+	s.fleet = f.ID
+	for _, sh := range ships { // {attack, defense, hp, isTrooper}
+		typ := "cruiser"
+		if sh[3] == 1 {
+			typ = "trooper"
+		}
+		if _, err := repo.AddShip(ctx, f.ID, typ, sh[0], sh[1], sh[2]); err != nil {
+			t.Fatalf("AddShip: %v", err)
+		}
+	}
+	return s
+}
+
+func (s invadeSetup) order(t *testing.T, repo *repository.Repository) uuid.UUID {
+	t.Helper()
+	payload := []byte(fmt.Sprintf(`{"fleet_id": "%s", "planet_id": "%s"}`, s.fleet, s.target))
+	a, err := repo.CreateAction(context.Background(), *s.attacker, "invade", payload, time.Now())
+	if err != nil {
+		t.Fatalf("CreateAction(invade): %v", err)
+	}
+	return a.ID
+}
+
+func TestEngine_InvadeDrainsShieldAndPlanetFiresBack(t *testing.T) {
+	engine, repo := setupTestEngine(t)
+	ctx := context.Background()
+
+	// Level 1: armour 5, attack 18, shield 90. A 60-attack fleet does ~55 damage:
+	// a big dent, but not a breach.
+	s := newInvadeSetup(t, repo, 1, 90, [4]int{60, 0, 500, 0})
+	action := s.order(t, repo)
+	if err := engine.resolveAction(ctx, action, time.Now()); err != nil {
+		t.Fatalf("resolveAction: %v", err)
+	}
+
+	p := getPlanet(t, repo, s.target)
+	if p.Shield <= 0 || p.Shield >= 90 {
+		t.Errorf("shield = %d, want drained but not breached (0 < shield < 90)", p.Shield)
+	}
+	if *p.OwnerID != *s.defender {
+		t.Error("planet must not change hands without a breach")
+	}
+	f, _ := repo.GetFleetWithShips(ctx, s.fleet)
+	if f.Ships[0].HP >= 500 {
+		t.Errorf("planet should have fired back, fleet HP = %d", f.Ships[0].HP)
+	}
+	var battles int
+	_ = repo.Pool.QueryRow(ctx, `SELECT count(*) FROM planet_battles WHERE planet_id = $1 AND NOT captured`, s.target).Scan(&battles)
+	if battles != 1 {
+		t.Errorf("battle log rows = %d, want 1", battles)
+	}
+	if st := actionStatus(t, repo, action); st != "resolved" {
+		t.Errorf("status = %q, want resolved", st)
+	}
+}
+
+func TestEngine_InvadeWithTrooperCapturesBreachedPlanet(t *testing.T) {
+	engine, repo := setupTestEngine(t)
+	ctx := context.Background()
+
+	s := newInvadeSetup(t, repo, 2, 130, [4]int{500, 40, 800, 0}, [4]int{1, 1, 30, 1})
+	if err := engine.resolveAction(ctx, s.order(t, repo), time.Now()); err != nil {
+		t.Fatalf("resolveAction: %v", err)
+	}
+
+	p := getPlanet(t, repo, s.target)
+	if p.OwnerID == nil || *p.OwnerID != *s.attacker {
+		t.Fatalf("planet should now belong to the attacker, owner = %v", p.OwnerID)
+	}
+	if p.DefenseLevel != domain.CapturedLevel(2) || p.Shield != domain.CapturedShield(2) {
+		t.Errorf("captured planet level/shield = %d/%d, want %d/%d",
+			p.DefenseLevel, p.Shield, domain.CapturedLevel(2), domain.CapturedShield(2))
+	}
+	f, _ := repo.GetFleetWithShips(ctx, s.fleet)
+	if f.CountShips("trooper") != 0 {
+		t.Error("the trooper is consumed by the capture")
+	}
+	if f.CountShips("cruiser") != 1 {
+		t.Error("the rest of the fleet survives")
+	}
+
+	standings, err := repo.LeaderboardStandings(ctx)
+	if err != nil {
+		t.Fatalf("LeaderboardStandings: %v", err)
+	}
+	for _, st := range standings {
+		if st.PlayerID == *s.attacker && st.Captures != 1 {
+			t.Errorf("attacker captures = %d, want 1", st.Captures)
+		}
+	}
+}
+
+func TestEngine_BreachWithoutTrooperDoesNotCapture(t *testing.T) {
+	engine, repo := setupTestEngine(t)
+	ctx := context.Background()
+
+	s := newInvadeSetup(t, repo, 1, 90, [4]int{500, 40, 800, 0}) // no trooper
+	if err := engine.resolveAction(ctx, s.order(t, repo), time.Now()); err != nil {
+		t.Fatalf("resolveAction: %v", err)
+	}
+	p := getPlanet(t, repo, s.target)
+	if p.Shield != 0 {
+		t.Errorf("shield = %d, want fully breached", p.Shield)
+	}
+	if *p.OwnerID != *s.defender {
+		t.Error("without a trooper the planet stays with its owner")
+	}
+}
+
+func TestEngine_LastPlanetIsProtected(t *testing.T) {
+	engine, repo := setupTestEngine(t)
+	ctx := context.Background()
+
+	s := newInvadeSetup(t, repo, 1, 90, [4]int{500, 40, 800, 0}, [4]int{1, 1, 30, 1})
+	if _, err := repo.Pool.Exec(ctx, `DELETE FROM planets WHERE id = $1`, s.spare); err != nil {
+		t.Fatal(err)
+	}
+	action := s.order(t, repo)
+	if err := engine.resolveAction(ctx, action, time.Now()); err != nil {
+		t.Fatalf("resolveAction: %v", err)
+	}
+	if st := actionStatus(t, repo, action); st != "failed" {
+		t.Errorf("status = %q, want failed (sanctuary)", st)
+	}
+	if p := getPlanet(t, repo, s.target); p.Shield != 90 || *p.OwnerID != *s.defender {
+		t.Errorf("a protected planet must be untouched: shield=%d", p.Shield)
+	}
+}
+
+func TestEngine_InvadeValidation(t *testing.T) {
+	engine, repo := setupTestEngine(t)
+	ctx := context.Background()
+
+	// out of range
+	s := newInvadeSetup(t, repo, 1, 90, [4]int{500, 40, 800, 0})
+	if _, err := repo.Pool.Exec(ctx, `UPDATE fleets SET pos_x = 0, pos_y = 0 WHERE id = $1`, s.fleet); err != nil {
+		t.Fatal(err)
+	}
+	action := s.order(t, repo)
+	_ = engine.resolveAction(ctx, action, time.Now())
+	if st := actionStatus(t, repo, action); st != "failed" {
+		t.Errorf("out of range: status = %q, want failed", st)
+	}
+	if getPlanet(t, repo, s.target).Shield != 90 {
+		t.Error("an out-of-range assault must not damage the planet")
+	}
+
+	// your own planet, and an unowned one
+	own := insertPlanet(t, repo, s.attacker, 42, 42, 100, 1)
+	neutral := insertPlanet(t, repo, nil, 42, 43, 100, 1)
+	_, _ = repo.Pool.Exec(ctx, `UPDATE fleets SET pos_x = 42, pos_y = 42 WHERE id = $1`, s.fleet)
+	for name, planet := range map[string]uuid.UUID{"own": own, "unowned": neutral} {
+		payload := []byte(fmt.Sprintf(`{"fleet_id": "%s", "planet_id": "%s"}`, s.fleet, planet))
+		a, _ := repo.CreateAction(ctx, *s.attacker, "invade", payload, time.Now())
+		_ = engine.resolveAction(ctx, a.ID, time.Now())
+		if st := actionStatus(t, repo, a.ID); st != "failed" {
+			t.Errorf("%s planet: status = %q, want failed", name, st)
+		}
+	}
+}
+
+func TestEngine_PlanetGunsCanDestroyAFleet(t *testing.T) {
+	engine, repo := setupTestEngine(t)
+	ctx := context.Background()
+
+	// Level 10: attack 90. A lone fragile ship has no chance.
+	s := newInvadeSetup(t, repo, 10, 450, [4]int{2, 0, 20, 0})
+	defBefore := credits(t, repo, *s.defender)
+	if err := engine.resolveAction(ctx, s.order(t, repo), time.Now()); err != nil {
+		t.Fatalf("resolveAction: %v", err)
+	}
+	if f, _ := repo.GetFleetWithShips(ctx, s.fleet); f != nil {
+		t.Error("the fleet should have been destroyed by the planet's guns")
+	}
+	if got := credits(t, repo, *s.defender) - defBefore; got != 250 { // half a cruiser's 500
+		t.Errorf("defender salvage = %d, want 250", got)
+	}
+	var destroyed bool
+	_ = repo.Pool.QueryRow(ctx, `SELECT attacker_destroyed FROM planet_battles WHERE planet_id = $1`, s.target).Scan(&destroyed)
+	if !destroyed {
+		t.Error("battle log should record that the attacker was destroyed")
+	}
+}
+
+func TestEngine_FortifyRaisesLevelAndShield(t *testing.T) {
+	engine, repo := setupTestEngine(t)
+	ctx := context.Background()
+
+	p := newPlayer(t, repo, "fort")
+	planet := insertPlanet(t, repo, p, 20, 20, 5000, 10)
+	setDefense(t, repo, planet, 1, 70)
+	giveCredits(t, repo, *p, 0)
+
+	payload := []byte(fmt.Sprintf(`{"planet_id": "%s", "cost": 400}`, planet))
+	a, _ := repo.CreateAction(ctx, *p, "fortify", payload, time.Now())
+	if err := engine.resolveAction(ctx, a.ID, time.Now()); err != nil {
+		t.Fatalf("resolveAction: %v", err)
+	}
+	got := getPlanet(t, repo, planet)
+	if got.DefenseLevel != 2 || got.Shield != 70+40 {
+		t.Errorf("level/shield = %d/%d, want 2/110", got.DefenseLevel, got.Shield)
+	}
+	if credits(t, repo, *p) != 0 {
+		t.Error("a successful fortify must not refund")
+	}
+}
+
+func TestEngine_FortifyRefundsWhenImpossible(t *testing.T) {
+	engine, repo := setupTestEngine(t)
+	ctx := context.Background()
+
+	p, other := newPlayer(t, repo, "fort_r"), newPlayer(t, repo, "fort_o")
+	notMine := insertPlanet(t, repo, other, 30, 30, 5000, 10)
+	maxed := insertPlanet(t, repo, p, 31, 31, 5000, 10)
+	setDefense(t, repo, maxed, domain.MaxDefenseLevel, 450)
+
+	for name, planet := range map[string]uuid.UUID{"not owner": notMine, "max level": maxed} {
+		giveCredits(t, repo, *p, 0)
+		payload := []byte(fmt.Sprintf(`{"planet_id": "%s", "cost": 300}`, planet))
+		a, _ := repo.CreateAction(ctx, *p, "fortify", payload, time.Now())
+		if err := engine.resolveAction(ctx, a.ID, time.Now()); err != nil {
+			t.Fatalf("%s: resolveAction: %v", name, err)
+		}
+		if st := actionStatus(t, repo, a.ID); st != "failed" {
+			t.Errorf("%s: status = %q, want failed", name, st)
+		}
+		if got := credits(t, repo, *p); got != 300 {
+			t.Errorf("%s: credits = %d, want 300 refunded", name, got)
+		}
+	}
+}
+
+func TestEngine_ShieldRegenerationAndCapMatchesDomain(t *testing.T) {
+	engine, repo := setupTestEngine(t)
+	ctx := context.Background()
+
+	p := newPlayer(t, repo, "regen")
+	// One planet per level, each a point below full: regen must cap at exactly
+	// domain.MaxShield, proving the SQL formula and the Go formula agree.
+	near := map[int]uuid.UUID{}
+	for level := 0; level <= domain.MaxDefenseLevel; level++ {
+		id := insertPlanet(t, repo, p, float64(level), 5, 100, 1)
+		setDefense(t, repo, id, level, domain.MaxShield(level)-1)
+		near[level] = id
+	}
+	empty := insertPlanet(t, repo, p, 50, 50, 100, 1)
+	setDefense(t, repo, empty, 3, 0)
+	neutral := insertPlanet(t, repo, nil, 60, 60, 100, 1)
+	setDefense(t, repo, neutral, 3, 0)
+
+	now := time.Unix(4_100_000_000+rand.Int63n(1_000_000)*10, 0)
+	if !engine.collectIncome(ctx, now) {
+		t.Fatal("tick should be claimed")
+	}
+	for level, id := range near {
+		if got := getPlanet(t, repo, id).Shield; got != domain.MaxShield(level) {
+			t.Errorf("level %d shield = %d, want capped at %d", level, got, domain.MaxShield(level))
+		}
+	}
+	if got := getPlanet(t, repo, empty).Shield; got != domain.ShieldRegenPerTick {
+		t.Errorf("empty shield regenerated to %d, want %d", got, domain.ShieldRegenPerTick)
+	}
+	if got := getPlanet(t, repo, neutral).Shield; got != 0 {
+		t.Errorf("unowned planets don't regenerate, got %d", got)
+	}
+}
+
+// Two attackers resolving at the same moment against the defender's last two
+// planets: exactly one may capture, or the defender would be left with nothing.
+func TestEngine_ConcurrentInvasionsRespectSanctuary(t *testing.T) {
+	engine, repo := setupTestEngine(t)
+	ctx := context.Background()
+
+	defender := newPlayer(t, repo, "conc_d")
+	p1 := insertPlanet(t, repo, defender, 10, 10, 5000, 10)
+	p2 := insertPlanet(t, repo, defender, 80, 80, 5000, 10)
+	setDefense(t, repo, p1, 0, 50)
+	setDefense(t, repo, p2, 0, 50)
+
+	var actions []uuid.UUID
+	for _, target := range []struct {
+		planet uuid.UUID
+		x, y   float64
+	}{{p1, 11, 11}, {p2, 81, 81}} {
+		attacker := newPlayer(t, repo, "conc_a")
+		fleet, _ := repo.CreateFleet(ctx, *attacker, target.x, target.y)
+		_, _ = repo.AddShip(ctx, fleet.ID, "cruiser", 500, 40, 800)
+		_, _ = repo.AddShip(ctx, fleet.ID, "trooper", 1, 1, 30)
+		payload := []byte(fmt.Sprintf(`{"fleet_id": "%s", "planet_id": "%s"}`, fleet.ID, target.planet))
+		a, err := repo.CreateAction(ctx, *attacker, "invade", payload, time.Now())
+		if err != nil {
+			t.Fatalf("CreateAction: %v", err)
+		}
+		actions = append(actions, a.ID)
+	}
+
+	var wg sync.WaitGroup
+	errs := make([]error, len(actions))
+	for i, id := range actions {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = engine.resolveAction(ctx, id, time.Now())
+		}()
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("resolve #%d: %v", i, err)
+		}
+	}
+
+	n, err := repo.CountPlanetsOwned(ctx, *defender)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("defender owns %d planets after two simultaneous invasions, want exactly 1 (sanctuary)", n)
+	}
+	var resolved, failed int
+	for _, id := range actions {
+		switch actionStatus(t, repo, id) {
+		case "resolved":
+			resolved++
+		case "failed":
+			failed++
+		}
+	}
+	if resolved != 1 || failed != 1 {
+		t.Errorf("want one capture and one refusal, got %d resolved / %d failed", resolved, failed)
 	}
 }

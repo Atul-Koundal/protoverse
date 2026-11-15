@@ -120,7 +120,7 @@ func (e *Engine) dueActionIDs(ctx context.Context, now time.Time) []uuid.UUID {
 	return ids
 }
 
-// collectIncome pays planet income for this tick. It reports whether this
+// collectIncome pays planet income and regenerates planet shields for this tick. It reports whether this
 // engine instance was the one that claimed the tick.
 func (e *Engine) collectIncome(ctx context.Context, now time.Time) bool {
 	tick := domain.TickNumber(now)
@@ -135,6 +135,9 @@ func (e *Engine) collectIncome(ctx context.Context, now time.Time) bool {
 		claimed = true
 		gains, err = e.Repo.TxCollectIncome(ctx, tx)
 		if err != nil {
+			return err
+		}
+		if err := e.Repo.TxRegenShields(ctx, tx, domain.ShieldRegenPerTick); err != nil {
 			return err
 		}
 		return e.Repo.TxPruneTicks(ctx, tx, tick-keepTicks)
@@ -185,6 +188,10 @@ func (e *Engine) resolveAction(ctx context.Context, actionID uuid.UUID, now time
 			out, err = e.resolveBuild(ctx, tx, action)
 		case "colonize":
 			out, err = e.resolveColonize(ctx, tx, action, now)
+		case "invade":
+			out, err = e.resolveInvade(ctx, tx, action, now)
+		case "fortify":
+			out, err = e.resolveFortify(ctx, tx, action)
 		default:
 			log.Printf("tick: unknown action type %q, marking failed", action.ActionType)
 			out = fail("unknown action type")
