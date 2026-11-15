@@ -8,6 +8,8 @@
 //	pvctl move <fleet> <x> <y>        send a fleet somewhere
 //	pvctl attack <fleet> <target>     attack an enemy fleet within range
 //	pvctl colonize <fleet> <planet>   claim a neutral planet with a colony ship
+//	pvctl invade <fleet> <planet>     assault an enemy planet (troopers capture it once its shield is down)
+//	pvctl fortify <planet>            raise one of your planets' defense level
 //	pvctl scan <x> <y> <radius>       list everything near a point
 //	pvctl leaderboard [n]             top players
 //	pvctl watch                       live event feed
@@ -59,7 +61,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: pvctl [-addr host:port] <register|status|map|catalog|build|move|attack|colonize|scan|leaderboard|watch> [args]")
+	fmt.Fprintln(os.Stderr, "usage: pvctl [-addr host:port] <register|status|map|catalog|build|move|attack|colonize|invade|fortify|scan|leaderboard|watch> [args]")
 	fmt.Fprintln(os.Stderr, "see `go doc ./cmd/pvctl` or the README for details")
 }
 
@@ -135,6 +137,10 @@ func (c *cli) run(cmd string, args []string) error {
 		return c.attack(args)
 	case "colonize":
 		return c.colonize(args)
+	case "invade":
+		return c.invade(args)
+	case "fortify":
+		return c.fortify(args)
 	case "scan":
 		return c.scan(args)
 	case "watch":
@@ -201,9 +207,9 @@ func (c *cli) leaderboard(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%3s  %-24s %7s %7s %6s %6s\n", "#", "COMMANDER", "SCORE", "PLANETS", "SHIPS", "KILLS")
+	fmt.Printf("%3s  %-24s %7s %7s %6s %6s %8s\n", "#", "COMMANDER", "SCORE", "PLANETS", "SHIPS", "KILLS", "CAPTURES")
 	for _, e := range lb.GetEntries() {
-		fmt.Printf("%3d  %-24s %7d %7d %6d %6d\n", e.GetRank(), e.GetDisplayName(), e.GetScore(), e.GetPlanets(), e.GetShips(), e.GetKills())
+		fmt.Printf("%3d  %-24s %7d %7d %6d %6d %8d\n", e.GetRank(), e.GetDisplayName(), e.GetScore(), e.GetPlanets(), e.GetShips(), e.GetKills(), e.GetCaptures())
 	}
 	return nil
 }
@@ -230,7 +236,7 @@ func (c *cli) status() error {
 	fmt.Printf("Commander %s · %d credits · tick %d\n", st.GetPlayer().GetDisplayName(), st.GetCredits(), st.GetTick())
 	fmt.Println("\nPLANETS")
 	for _, p := range st.GetPlanets() {
-		fmt.Printf("  %s  %-22s (%.1f, %.1f)  +%d/tick  deposit %d\n", shortID(p.GetId()), p.GetName(), p.GetPosition().GetX(), p.GetPosition().GetY(), p.GetProduction(), p.GetResources())
+		fmt.Printf("  %s  %-22s (%.1f, %.1f)  +%d/tick  deposit %d  defense L%d shield %d/%d\n", shortID(p.GetId()), p.GetName(), p.GetPosition().GetX(), p.GetPosition().GetY(), p.GetProduction(), p.GetResources(), p.GetDefenseLevel(), p.GetShield(), p.GetMaxShield())
 	}
 	fmt.Println("\nFLEETS")
 	for _, f := range st.GetFleets() {
@@ -412,6 +418,67 @@ func (c *cli) colonize(args []string) error {
 	return nil
 }
 
+func (c *cli) invade(args []string) error {
+	if len(args) != 2 {
+		return errors.New("usage: pvctl invade <your-fleet> <enemy-planet>")
+	}
+	st, ctx, cancel, err := c.myState()
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	g, err := c.client.GetGalaxyState(ctx, &protoversev1.GetGalaxyStateRequest{})
+	if err != nil {
+		return err
+	}
+	var fleets, planets []string
+	for _, f := range st.GetFleets() {
+		fleets = append(fleets, f.GetId())
+	}
+	for _, p := range g.GetPlanets() {
+		planets = append(planets, p.GetId())
+	}
+	fleet, err := resolveID(args[0], fleets, "fleet of yours")
+	if err != nil {
+		return err
+	}
+	planet, err := resolveID(args[1], planets, "planet")
+	if err != nil {
+		return err
+	}
+	a, err := c.client.InvadePlanet(ctx, &protoversev1.InvadePlanetRequest{FleetId: fleet, PlanetId: planet})
+	if err != nil {
+		return err
+	}
+	ackLine("Invasion launched.", a)
+	return nil
+}
+
+func (c *cli) fortify(args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: pvctl fortify <planet>")
+	}
+	st, ctx, cancel, err := c.myState()
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	var ids []string
+	for _, p := range st.GetPlanets() {
+		ids = append(ids, p.GetId())
+	}
+	planet, err := resolveID(args[0], ids, "planet of yours")
+	if err != nil {
+		return err
+	}
+	a, err := c.client.FortifyPlanet(ctx, &protoversev1.FortifyPlanetRequest{PlanetId: planet})
+	if err != nil {
+		return err
+	}
+	ackLine("Fortifying.", a)
+	return nil
+}
+
 func (c *cli) scan(args []string) error {
 	if len(args) != 3 {
 		return errors.New("usage: pvctl scan <x> <y> <radius>")
@@ -483,6 +550,19 @@ func (c *cli) watch() error {
 			fmt.Printf("%s · combat %s → %s: %d damage (target destroyed: %v), return fire %d (attacker destroyed: %v), salvage %d/%d\n",
 				ts, shortID(cr.GetAttackingFleetId()), shortID(cr.GetTargetFleetId()), cr.GetDamageDealt(), cr.GetTargetDestroyed(),
 				cr.GetCounterDamage(), cr.GetAttackerDestroyed(), cr.GetSalvage(), cr.GetCounterSalvage())
+		case *protoversev1.GameEvent_PlanetBattle:
+			b := e.PlanetBattle
+			verdict := ""
+			if b.GetCaptured() {
+				verdict = " — PLANET CAPTURED"
+			}
+			if b.GetAttackerDestroyed() {
+				verdict += " — attacking fleet destroyed"
+			}
+			fmt.Printf("%s · assault on %s: shield −%d → %d, %d damage to the attackers%s\n",
+				ts, b.GetPlanetName(), b.GetDamageToPlanet(), b.GetShieldAfter(), b.GetDamageToFleet(), verdict)
+		case *protoversev1.GameEvent_PlanetFortified:
+			fmt.Printf("%s · %s fortified to level %d\n", ts, e.PlanetFortified.GetPlanetName(), e.PlanetFortified.GetNewLevel())
 		case *protoversev1.GameEvent_ActionFailed:
 			fmt.Printf("%s · order failed: %s\n", ts, e.ActionFailed.GetReason())
 		}
