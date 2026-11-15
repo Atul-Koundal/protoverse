@@ -132,12 +132,15 @@ func TestPlanetYield(t *testing.T) {
 }
 
 func TestComputeScore(t *testing.T) {
-	// 2 planets, 5 ships, 3 kills, 200 damage, 1000 credits
-	// = 200 + 50 + 150 + 20 + 10
-	if got := ComputeScore(2, 5, 3, 200, 1000); got != 430 {
+	// 2 planets, 5 ships, 3 kills, 0 captures, 200 damage, 1000 credits
+	// = 200 + 50 + 150 + 0 + 20 + 10
+	if got := ComputeScore(2, 5, 3, 0, 200, 1000); got != 430 {
 		t.Errorf("ComputeScore = %d, want 430", got)
 	}
-	if ComputeScore(0, 0, 0, 0, 0) != 0 {
+	if got := ComputeScore(0, 0, 0, 2, 0, 0); got != 150 {
+		t.Errorf("two captures should be worth 150, got %d", got)
+	}
+	if ComputeScore(0, 0, 0, 0, 0, 0) != 0 {
 		t.Error("zero holdings should score zero")
 	}
 }
@@ -153,5 +156,36 @@ func TestTickNumber(t *testing.T) {
 	}
 	if got := ExecuteAfterTicks(base, 3).Sub(base); got != 3*TickInterval {
 		t.Errorf("ExecuteAfterTicks = %v", got)
+	}
+}
+
+func TestPlanetDefenseScaling(t *testing.T) {
+	for l := 0; l < MaxDefenseLevel; l++ {
+		if MaxShield(l+1) <= MaxShield(l) || PlanetAttack(l+1) <= PlanetAttack(l) || PlanetArmor(l+1) <= PlanetArmor(l) {
+			t.Errorf("level %d -> %d must strictly strengthen shield, attack and armour", l, l+1)
+		}
+		if FortifyCost(l+1) <= FortifyCost(l) {
+			t.Errorf("fortify cost must rise with level (%d)", l)
+		}
+	}
+	if FortifyCost(0) != 200 || FortifyCost(2) != 600 {
+		t.Errorf("fortify costs wrong: %d %d", FortifyCost(0), FortifyCost(2))
+	}
+	p := Planet{DefenseLevel: 2}
+	if p.MaxShield() != 130 {
+		t.Errorf("level-2 planet max shield = %d, want 130", p.MaxShield())
+	}
+}
+
+func TestCapturedPlanetIsWeakened(t *testing.T) {
+	if CapturedLevel(0) != 0 || CapturedLevel(5) != 4 {
+		t.Error("capture should cost one defense level, never going below 0")
+	}
+	if got, full := CapturedShield(4), MaxShield(3); got <= 0 || got >= full {
+		t.Errorf("captured shield %d should be positive but below the full %d", got, full)
+	}
+	// The home shield must outlast the regen between ticks, or planets could never fall.
+	if ShieldRegenPerTick >= MaxShield(HomeDefenseLevel) {
+		t.Error("regeneration must be far smaller than a homeworld's shield")
 	}
 }

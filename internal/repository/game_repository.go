@@ -141,7 +141,7 @@ func (r *Repository) LeaderboardStandings(ctx context.Context) ([]domain.Standin
 	rows, err := r.Pool.Query(ctx, `
 		SELECT p.id, p.display_name, p.credits,
 		       COALESCE(pl.cnt, 0), COALESCE(sh.cnt, 0),
-		       COALESCE(cb.kills, 0), COALESCE(cb.damage, 0)
+		       COALESCE(cb.kills, 0), COALESCE(cb.damage, 0), COALESCE(pb.captures, 0)
 		FROM players p
 		LEFT JOIN (SELECT owner_id, count(*) AS cnt FROM planets
 		           WHERE owner_id IS NOT NULL GROUP BY owner_id) pl ON pl.owner_id = p.id
@@ -155,7 +155,9 @@ func (r *Repository) LeaderboardStandings(ctx context.Context) ([]domain.Standin
 		        SELECT target_player_id, attacker_destroyed::int, counter_damage::bigint
 		          FROM combat_logs WHERE target_player_id IS NOT NULL
 		    ) c GROUP BY pid
-		) cb ON cb.pid = p.id`)
+		) cb ON cb.pid = p.id
+		LEFT JOIN (SELECT attacker_player_id, count(*) AS captures FROM planet_battles
+		           WHERE captured GROUP BY attacker_player_id) pb ON pb.attacker_player_id = p.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -164,12 +166,12 @@ func (r *Repository) LeaderboardStandings(ctx context.Context) ([]domain.Standin
 	var out []domain.Standing
 	for rows.Next() {
 		var s domain.Standing
-		var planets, ships, kills int64
-		if err := rows.Scan(&s.PlayerID, &s.DisplayName, &s.Credits, &planets, &ships, &kills, &s.Damage); err != nil {
+		var planets, ships, kills, captures int64
+		if err := rows.Scan(&s.PlayerID, &s.DisplayName, &s.Credits, &planets, &ships, &kills, &s.Damage, &captures); err != nil {
 			return nil, err
 		}
-		s.Planets, s.Ships, s.Kills = int(planets), int(ships), int(kills)
-		s.Score = domain.ComputeScore(s.Planets, s.Ships, s.Kills, s.Damage, s.Credits)
+		s.Planets, s.Ships, s.Kills, s.Captures = int(planets), int(ships), int(kills), int(captures)
+		s.Score = domain.ComputeScore(s.Planets, s.Ships, s.Kills, s.Captures, s.Damage, s.Credits)
 		out = append(out, s)
 	}
 	if err := rows.Err(); err != nil {

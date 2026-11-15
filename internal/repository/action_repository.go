@@ -35,6 +35,14 @@ func (r *Repository) insertAction(ctx context.Context, q dbtx, playerID uuid.UUI
 // transaction, so credits can never be spent without an order (or the
 // reverse). It returns ErrInsufficientCredits if the player can't afford it.
 func (r *Repository) CreateBuildAction(ctx context.Context, playerID uuid.UUID, cost int64, payload []byte, executeAt time.Time) (*domain.Action, error) {
+	return r.CreateChargedAction(ctx, playerID, cost, "build", payload, executeAt)
+}
+
+// CreateChargedAction is the general form: deduct cost and insert an order of
+// any type atomically. If the order violates a uniqueness rule (e.g. a second
+// pending fortify for the same planet) the whole transaction rolls back, so the
+// credits are never taken, and ErrConflict is returned.
+func (r *Repository) CreateChargedAction(ctx context.Context, playerID uuid.UUID, cost int64, actionType string, payload []byte, executeAt time.Time) (*domain.Action, error) {
 	var action *domain.Action
 	err := r.WithTx(ctx, func(tx pgx.Tx) error {
 		ok, err := r.TxSpendCredits(ctx, tx, playerID, cost)
@@ -44,7 +52,10 @@ func (r *Repository) CreateBuildAction(ctx context.Context, playerID uuid.UUID, 
 		if !ok {
 			return ErrInsufficientCredits
 		}
-		action, err = r.insertAction(ctx, tx, playerID, "build", payload, executeAt)
+		action, err = r.insertAction(ctx, tx, playerID, actionType, payload, executeAt)
+		if err != nil && IsUniqueViolation(err) {
+			return ErrConflict
+		}
 		return err
 	})
 	if err != nil {

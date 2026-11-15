@@ -50,11 +50,12 @@ func (r *Repository) RegisterPlayer(ctx context.Context, displayName, apiKeyHash
 		}
 
 		err = tx.QueryRow(ctx,
-			`INSERT INTO planets (owner_id, name, pos_x, pos_y, resources, production)
-			 VALUES ($1, $2, $3, $4, $5, $6)
-			 RETURNING id, owner_id, name, pos_x, pos_y, resources, production, created_at`,
-			player.ID, displayName+"'s Homeworld", homeX, homeY, domain.HomeDeposit, domain.HomeProduction).
-			Scan(&planet.ID, &planet.OwnerID, &planet.Name, &planet.PosX, &planet.PosY, &planet.Resources, &planet.Production, &planet.CreatedAt)
+			`INSERT INTO planets (owner_id, name, pos_x, pos_y, resources, production, defense_level, shield)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			 RETURNING `+planetColumns,
+			player.ID, displayName+"'s Homeworld", homeX, homeY, domain.HomeDeposit, domain.HomeProduction,
+			domain.HomeDefenseLevel, domain.MaxShield(domain.HomeDefenseLevel)).
+			Scan(&planet.ID, &planet.OwnerID, &planet.Name, &planet.PosX, &planet.PosY, &planet.Resources, &planet.Production, &planet.DefenseLevel, &planet.Shield, &planet.CreatedAt)
 		if err != nil {
 			return err
 		}

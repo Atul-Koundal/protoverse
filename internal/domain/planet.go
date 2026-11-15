@@ -16,7 +16,12 @@ type Planet struct {
 	// converts up to Production of it into credits for its owner.
 	Resources  int64
 	Production int
-	CreatedAt  time.Time
+	// DefenseLevel (0..MaxDefenseLevel) sets the planet's armour, firepower and
+	// maximum shield. Shield is the damage it can still absorb before a
+	// trooper can board it; it regenerates every tick.
+	DefenseLevel int
+	Shield       int
+	CreatedAt    time.Time
 }
 
 // Yield is how many credits the planet pays out this tick.
@@ -30,3 +35,6 @@ func (p *Planet) Yield() int64 {
 	}
 	return y
 }
+
+// MaxShield is this planet's shield capacity.
+func (p *Planet) MaxShield() int { return MaxShield(p.DefenseLevel) }

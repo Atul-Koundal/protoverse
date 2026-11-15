@@ -40,6 +40,7 @@ const (
 	ShipFighter = "fighter"
 	ShipCruiser = "cruiser"
 	ShipColony  = "colony"
+	ShipTrooper = "trooper"
 )
 
 // ShipSpec describes one buildable ship type.
@@ -59,6 +60,7 @@ var shipCatalog = []ShipSpec{
 	{ShipFighter, "Balanced workhorse of every fleet.", 8, 3, 40, 12, 150, 2},
 	{ShipCruiser, "Slow, tough and hard-hitting capital ship.", 20, 10, 120, 8, 500, 4},
 	{ShipColony, "Unarmed. Claims an unowned planet and is consumed doing so.", 0, 2, 60, 6, 800, 5},
+	{ShipTrooper, "Marines. Boards an enemy planet whose shield is down and is consumed capturing it.", 1, 1, 30, 10, 300, 3},
 }
 
 // ShipCatalog returns a copy of every buildable ship type, cheapest first.
