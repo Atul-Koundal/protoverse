@@ -94,6 +94,16 @@ func (g *Gateway) Handler() http.Handler {
 			return g.client.Colonize(ctx, req.(*protoversev1.ColonizeRequest))
 		})
 	})
+	mux.HandleFunc("POST /api/invade", func(w http.ResponseWriter, r *http.Request) {
+		g.unary(w, r, &protoversev1.InvadePlanetRequest{}, func(ctx context.Context, req proto.Message) (proto.Message, error) {
+			return g.client.InvadePlanet(ctx, req.(*protoversev1.InvadePlanetRequest))
+		})
+	})
+	mux.HandleFunc("POST /api/fortify", func(w http.ResponseWriter, r *http.Request) {
+		g.unary(w, r, &protoversev1.FortifyPlanetRequest{}, func(ctx context.Context, req proto.Message) (proto.Message, error) {
+			return g.client.FortifyPlanet(ctx, req.(*protoversev1.FortifyPlanetRequest))
+		})
+	})
 	mux.HandleFunc("GET /api/stream", g.stream)
 
 	sub, err := fs.Sub(staticFiles, "static")

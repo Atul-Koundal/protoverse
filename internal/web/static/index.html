@@ -183,6 +183,14 @@ function logEvent(ev) {
   }
   else if (ev.shipBuilt) msg = `🛠 ${ev.shipBuilt.quantity} × ${ev.shipBuilt.shipType} built.`;
   else if (ev.planetColonized) { msg = `🌍 Colonized ${ev.planetColonized.planetName}!`; cls = "good"; }
+  else if (ev.planetBattle) {
+    const b = ev.planetBattle, mineAtk = b.attackerPlayerId === myId();
+    msg = (mineAtk ? `🚀 Your fleet assaulted ${b.planetName}` : `🚨 ${b.planetName} was attacked`) + `: shield −${b.damageToPlanet} → ${b.shieldAfter}, ` +
+      (mineAtk ? `return fire ${b.damageToFleet}` : `${b.damageToFleet} damage to the attackers`) + (b.attackerDestroyed ? " — attacking fleet destroyed" : "") +
+      (b.captured ? (mineAtk ? " — PLANET CAPTURED!" : " — PLANET LOST!") : "");
+    cls = b.captured ? (mineAtk ? "good" : "bad") : "warn";
+  }
+  else if (ev.planetFortified) msg = `🛡 ${ev.planetFortified.planetName} fortified to level ${ev.planetFortified.newLevel}.`;
   else if (ev.incomeEarned) msg = `+${ev.incomeEarned.credits} credits`;
   else if (ev.actionFailed) { msg = `✖ Order failed: ${ev.actionFailed.reason}`; cls = "bad"; }
   else return; // tick heartbeat: refresh only
@@ -233,6 +241,15 @@ function renderBoard() {
   $("board").innerHTML = `<table><tr><th>#</th><th>Commander</th><th>Score</th><th>🌍</th><th>🚀</th></tr>` +
     board.map((e) => `<tr class="${e.playerId === myId() ? "me" : ""}"><td>${e.rank}</td><td>${esc(e.displayName)}</td><td>${e.score}</td><td>${e.planets}</td><td>${e.ships}</td></tr>`).join("") + `</table>`;
 }
+function defenseHtml(p) {
+  const pct = p.maxShield ? Math.round(100 * p.shield / p.maxShield) : 0;
+  return `<div class="row" style="margin:2px 0"><span>🛡 Level ${p.defenseLevel}</span><span class="bar"><i style="width:${pct}%;background:var(--accent)"></i></span><span class="dim">shield ${p.shield}/${p.maxShield}</span></div>`;
+}
+function fortifyHtml(p) {
+  if (p.defenseLevel >= catalog.maxDefenseLevel) return `<div class="hint">Defenses are at maximum.</div>`;
+  const cost = num(catalog.fortifyBaseCost) * (p.defenseLevel + 1);
+  return `<div class="row"><button data-act="fortify">Fortify to level ${p.defenseLevel + 1} — ${cost}c</button></div><div class="hint">Shield regenerates ${catalog.shieldRegenPerTick}/tick. Troopers can only board once it is down.</div>`;
+}
 function buildHtml() {
   return `<hr style="border-color:var(--line)"><h2>Build ships</h2><div class="row"><select id="bType">` +
     catalog.ships.map((s) => `<option value="${esc(s.shipType)}">${esc(s.shipType)} — ${s.cost}c, ${s.buildTicks} ticks</option>`).join("") +
@@ -256,8 +273,12 @@ function renderSelection() {
       html += `<div>Target planet <b>${esc(planet.name)}</b> <span class="dim">(${d.toFixed(1)} away${planet.ownerName ? ", owned by " + esc(planet.ownerName) : ", neutral"})</span></div><div class="row">`;
       html += `<button data-act="movePlanet">Move to planet</button>`;
       if (!planet.ownerId) html += `<button class="primary" data-act="colonize" ${countType(f, "colony") && d <= catalog.colonizeRange ? "" : "disabled"}>Colonize</button>`;
+      const hostile = planet.ownerId && planet.ownerId !== myId();
+      if (hostile) html += `<button class="primary" data-act="invade" ${d <= catalog.attackRange ? "" : "disabled"}>Invade</button>`;
       html += `</div>`;
-      if (planet.ownerId === myId()) html += buildHtml();
+      if (planet.ownerId) html += defenseHtml(planet);
+      if (hostile) html += `<div class="hint">${countType(f, "trooper") ? "Your trooper captures the planet if the shield falls to 0." : "No trooper in this fleet: you can bombard the shield but not capture."} The planet fires back. A commander's last planet is protected.</div>`;
+      if (planet.ownerId === myId()) html += fortifyHtml(planet) + buildHtml();
       if (!planet.ownerId) html += `<div class="hint">Needs a colony ship and to be within ${catalog.colonizeRange} units.</div>`;
     } else if (enemy) {
       const d = dist(fp, fleetPos(enemy));
@@ -273,8 +294,9 @@ function renderSelection() {
     if (p) {
       html += `<div><b>${esc(p.name)}</b> <span class="tag">${p.ownerName ? esc(p.ownerName) : "neutral"}</span></div>`;
       html += `<div class="dim">Production ${p.production}/tick · deposit left ${num(p.resources).toLocaleString()}</div>`;
+      if (p.ownerId) html += defenseHtml(p);
       if (p.ownerId === myId()) {
-        html += buildHtml();
+        html += fortifyHtml(p) + buildHtml();
       } else html += `<div class="hint">Select one of your fleets first to move to or colonize it.</div>`;
     }
   } else html += `<div class="dim">Click one of your fleets, or one of your planets to build ships.</div>`;
@@ -290,6 +312,8 @@ function wireSelection(f) {
   if (btn("moveFleet")) btn("moveFleet").onclick = () => { const p = fleetPos(allFleets().find((x) => x.id === t.id)); go(p.x, p.y); };
   if (btn("movePoint")) btn("movePoint").onclick = () => go(sel.point.x, sel.point.y);
   if (btn("colonize")) btn("colonize").onclick = () => order("colonize", { fleetId: f.id, planetId: t.id }, "Colonization ordered.");
+  if (btn("invade")) btn("invade").onclick = () => order("invade", { fleetId: f.id, planetId: t.id }, "Invasion ordered.");
+  if (btn("fortify")) btn("fortify").onclick = () => order("fortify", { planetId: t.id }, "Fortification ordered.");
   if (btn("attack")) btn("attack").onclick = () => order("attack", { attackingFleetId: f.id, targetFleetId: t.id }, "Attack ordered.");
   if (btn("build")) {
     const upd = () => {
@@ -331,6 +355,10 @@ function draw() {
     const r = (6 + Math.min(14, p.production / 2)) * k;
     ctx.fillStyle = color + "33"; ctx.strokeStyle = color; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7); ctx.fill(); ctx.stroke();
+    if (p.ownerId && p.maxShield) {
+      ctx.strokeStyle = "#5ac8fa"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(c.x, c.y, r + 3, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * (p.shield / p.maxShield)); ctx.stroke();
+    }
     const picked = sel.target && sel.target.type === "planet" && sel.target.id === p.id;
     if (picked) { ctx.strokeStyle = "#fff"; ctx.beginPath(); ctx.arc(c.x, c.y, r + 5, 0, 7); ctx.stroke(); }
     if (p.ownerId || picked) { ctx.fillStyle = "#b8c4de"; ctx.font = `${12 * k}px system-ui`; ctx.fillText(p.name, c.x + r + 4, c.y + 4); }

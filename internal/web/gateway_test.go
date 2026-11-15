@@ -19,9 +19,11 @@ import (
 // interface makes any other call panic, which would flag an unexpected route.
 type fakeClient struct {
 	protoversev1.GameServiceClient
-	lastAuth  string
-	lastMove  *protoversev1.MoveFleetRequest
-	lastBuild *protoversev1.BuildShipRequest
+	lastAuth    string
+	lastMove    *protoversev1.MoveFleetRequest
+	lastBuild   *protoversev1.BuildShipRequest
+	lastInvade  *protoversev1.InvadePlanetRequest
+	lastFortify *protoversev1.FortifyPlanetRequest
 }
 
 func (f *fakeClient) record(ctx context.Context) {
@@ -58,6 +60,18 @@ func (f *fakeClient) BuildShip(ctx context.Context, req *protoversev1.BuildShipR
 	f.record(ctx)
 	f.lastBuild = req
 	return nil, status.Error(codes.Internal, "pq: secret database detail")
+}
+
+func (f *fakeClient) InvadePlanet(ctx context.Context, req *protoversev1.InvadePlanetRequest, _ ...grpc.CallOption) (*protoversev1.ActionAck, error) {
+	f.record(ctx)
+	f.lastInvade = req
+	return &protoversev1.ActionAck{ActionId: "inv1"}, nil
+}
+
+func (f *fakeClient) FortifyPlanet(ctx context.Context, req *protoversev1.FortifyPlanetRequest, _ ...grpc.CallOption) (*protoversev1.ActionAck, error) {
+	f.record(ctx)
+	f.lastFortify = req
+	return nil, status.Error(codes.FailedPrecondition, "not enough credits")
 }
 
 func serve(t *testing.T, c protoversev1.GameServiceClient) *httptest.Server {
@@ -152,5 +166,19 @@ func TestOrdersDecodeJSONBodies(t *testing.T) {
 	}
 	if resp, _ := do(t, "GET", srv.URL+"/api/move", "", ""); resp.StatusCode == 200 {
 		t.Error("GET on a POST-only route must not succeed")
+	}
+}
+
+func TestPlanetOrdersRoutes(t *testing.T) {
+	fc := &fakeClient{}
+	srv := serve(t, fc)
+
+	resp, body := do(t, "POST", srv.URL+"/api/invade", `{"fleetId":"f1","planetId":"p9"}`, "Bearer k")
+	if resp.StatusCode != 200 || !strings.Contains(body, "inv1") || fc.lastInvade.GetFleetId() != "f1" || fc.lastInvade.GetPlanetId() != "p9" {
+		t.Errorf("invade: %d %s %v", resp.StatusCode, body, fc.lastInvade)
+	}
+	resp, _ = do(t, "POST", srv.URL+"/api/fortify", `{"planetId":"p9"}`, "Bearer k")
+	if resp.StatusCode != http.StatusConflict || fc.lastFortify.GetPlanetId() != "p9" {
+		t.Errorf("fortify: FailedPrecondition should map to 409, got %d", resp.StatusCode)
 	}
 }
