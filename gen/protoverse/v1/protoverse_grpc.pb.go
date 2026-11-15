@@ -27,6 +27,8 @@ const (
 	GameService_Attack_FullMethodName          = "/protoverse.v1.GameService/Attack"
 	GameService_BuildShip_FullMethodName       = "/protoverse.v1.GameService/BuildShip"
 	GameService_Colonize_FullMethodName        = "/protoverse.v1.GameService/Colonize"
+	GameService_InvadePlanet_FullMethodName    = "/protoverse.v1.GameService/InvadePlanet"
+	GameService_FortifyPlanet_FullMethodName   = "/protoverse.v1.GameService/FortifyPlanet"
 	GameService_Scan_FullMethodName            = "/protoverse.v1.GameService/Scan"
 	GameService_GetLeaderboard_FullMethodName  = "/protoverse.v1.GameService/GetLeaderboard"
 	GameService_StreamGameState_FullMethodName = "/protoverse.v1.GameService/StreamGameState"
@@ -57,6 +59,12 @@ type GameServiceClient interface {
 	Attack(ctx context.Context, in *AttackRequest, opts ...grpc.CallOption) (*ActionAck, error)
 	BuildShip(ctx context.Context, in *BuildShipRequest, opts ...grpc.CallOption) (*ActionAck, error)
 	Colonize(ctx context.Context, in *ColonizeRequest, opts ...grpc.CallOption) (*ActionAck, error)
+	// Assault an enemy planet with a fleet in attack range. The shield absorbs
+	// damage; the planet fires back; a trooper in the fleet captures the planet
+	// once its shield is down (the trooper is consumed).
+	InvadePlanet(ctx context.Context, in *InvadePlanetRequest, opts ...grpc.CallOption) (*ActionAck, error)
+	// Spend credits to raise one of your planets' defense level by one.
+	FortifyPlanet(ctx context.Context, in *FortifyPlanetRequest, opts ...grpc.CallOption) (*ActionAck, error)
 	// Everything within `radius` of `center`.
 	Scan(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (*ScanResult, error)
 	// Top players by score.
@@ -153,6 +161,26 @@ func (c *gameServiceClient) Colonize(ctx context.Context, in *ColonizeRequest, o
 	return out, nil
 }
 
+func (c *gameServiceClient) InvadePlanet(ctx context.Context, in *InvadePlanetRequest, opts ...grpc.CallOption) (*ActionAck, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ActionAck)
+	err := c.cc.Invoke(ctx, GameService_InvadePlanet_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gameServiceClient) FortifyPlanet(ctx context.Context, in *FortifyPlanetRequest, opts ...grpc.CallOption) (*ActionAck, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ActionAck)
+	err := c.cc.Invoke(ctx, GameService_FortifyPlanet_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gameServiceClient) Scan(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (*ScanResult, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ScanResult)
@@ -217,6 +245,12 @@ type GameServiceServer interface {
 	Attack(context.Context, *AttackRequest) (*ActionAck, error)
 	BuildShip(context.Context, *BuildShipRequest) (*ActionAck, error)
 	Colonize(context.Context, *ColonizeRequest) (*ActionAck, error)
+	// Assault an enemy planet with a fleet in attack range. The shield absorbs
+	// damage; the planet fires back; a trooper in the fleet captures the planet
+	// once its shield is down (the trooper is consumed).
+	InvadePlanet(context.Context, *InvadePlanetRequest) (*ActionAck, error)
+	// Spend credits to raise one of your planets' defense level by one.
+	FortifyPlanet(context.Context, *FortifyPlanetRequest) (*ActionAck, error)
 	// Everything within `radius` of `center`.
 	Scan(context.Context, *ScanRequest) (*ScanResult, error)
 	// Top players by score.
@@ -256,6 +290,12 @@ func (UnimplementedGameServiceServer) BuildShip(context.Context, *BuildShipReque
 }
 func (UnimplementedGameServiceServer) Colonize(context.Context, *ColonizeRequest) (*ActionAck, error) {
 	return nil, status.Error(codes.Unimplemented, "method Colonize not implemented")
+}
+func (UnimplementedGameServiceServer) InvadePlanet(context.Context, *InvadePlanetRequest) (*ActionAck, error) {
+	return nil, status.Error(codes.Unimplemented, "method InvadePlanet not implemented")
+}
+func (UnimplementedGameServiceServer) FortifyPlanet(context.Context, *FortifyPlanetRequest) (*ActionAck, error) {
+	return nil, status.Error(codes.Unimplemented, "method FortifyPlanet not implemented")
 }
 func (UnimplementedGameServiceServer) Scan(context.Context, *ScanRequest) (*ScanResult, error) {
 	return nil, status.Error(codes.Unimplemented, "method Scan not implemented")
@@ -431,6 +471,42 @@ func _GameService_Colonize_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GameService_InvadePlanet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InvadePlanetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GameServiceServer).InvadePlanet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GameService_InvadePlanet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GameServiceServer).InvadePlanet(ctx, req.(*InvadePlanetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GameService_FortifyPlanet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FortifyPlanetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GameServiceServer).FortifyPlanet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GameService_FortifyPlanet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GameServiceServer).FortifyPlanet(ctx, req.(*FortifyPlanetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _GameService_Scan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ScanRequest)
 	if err := dec(in); err != nil {
@@ -516,6 +592,14 @@ var GameService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Colonize",
 			Handler:    _GameService_Colonize_Handler,
+		},
+		{
+			MethodName: "InvadePlanet",
+			Handler:    _GameService_InvadePlanet_Handler,
+		},
+		{
+			MethodName: "FortifyPlanet",
+			Handler:    _GameService_FortifyPlanet_Handler,
 		},
 		{
 			MethodName: "Scan",

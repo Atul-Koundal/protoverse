@@ -151,9 +151,13 @@ type Planet struct {
 	Position *Position              `protobuf:"bytes,4,opt,name=position,proto3" json:"position,omitempty"`
 	// Remaining deposit. Owned planets convert up to `production` of it into
 	// credits each tick.
-	Resources     int64  `protobuf:"varint,5,opt,name=resources,proto3" json:"resources,omitempty"`
-	Production    int32  `protobuf:"varint,6,opt,name=production,proto3" json:"production,omitempty"`
-	OwnerName     string `protobuf:"bytes,7,opt,name=owner_name,json=ownerName,proto3" json:"owner_name,omitempty"`
+	Resources  int64  `protobuf:"varint,5,opt,name=resources,proto3" json:"resources,omitempty"`
+	Production int32  `protobuf:"varint,6,opt,name=production,proto3" json:"production,omitempty"`
+	OwnerName  string `protobuf:"bytes,7,opt,name=owner_name,json=ownerName,proto3" json:"owner_name,omitempty"`
+	// Defense level (0..max_defense_level) and the shield it currently holds.
+	DefenseLevel  int32 `protobuf:"varint,8,opt,name=defense_level,json=defenseLevel,proto3" json:"defense_level,omitempty"`
+	Shield        int32 `protobuf:"varint,9,opt,name=shield,proto3" json:"shield,omitempty"`
+	MaxShield     int32 `protobuf:"varint,10,opt,name=max_shield,json=maxShield,proto3" json:"max_shield,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -235,6 +239,27 @@ func (x *Planet) GetOwnerName() string {
 		return x.OwnerName
 	}
 	return ""
+}
+
+func (x *Planet) GetDefenseLevel() int32 {
+	if x != nil {
+		return x.DefenseLevel
+	}
+	return 0
+}
+
+func (x *Planet) GetShield() int32 {
+	if x != nil {
+		return x.Shield
+	}
+	return 0
+}
+
+func (x *Planet) GetMaxShield() int32 {
+	if x != nil {
+		return x.MaxShield
+	}
+	return 0
 }
 
 type Ship struct {
@@ -904,8 +929,12 @@ type Catalog struct {
 	ColonizeRange       float64                `protobuf:"fixed64,5,opt,name=colonize_range,json=colonizeRange,proto3" json:"colonize_range,omitempty"`
 	CurrentTick         int64                  `protobuf:"varint,6,opt,name=current_tick,json=currentTick,proto3" json:"current_tick,omitempty"`
 	MaxBuildQuantity    int32                  `protobuf:"varint,7,opt,name=max_build_quantity,json=maxBuildQuantity,proto3" json:"max_build_quantity,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	MaxDefenseLevel     int32                  `protobuf:"varint,8,opt,name=max_defense_level,json=maxDefenseLevel,proto3" json:"max_defense_level,omitempty"`
+	ShieldRegenPerTick  int32                  `protobuf:"varint,9,opt,name=shield_regen_per_tick,json=shieldRegenPerTick,proto3" json:"shield_regen_per_tick,omitempty"`
+	// Fortifying from level L to L+1 costs fortify_base_cost * (L+1).
+	FortifyBaseCost int64 `protobuf:"varint,10,opt,name=fortify_base_cost,json=fortifyBaseCost,proto3" json:"fortify_base_cost,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Catalog) Reset() {
@@ -983,6 +1012,27 @@ func (x *Catalog) GetCurrentTick() int64 {
 func (x *Catalog) GetMaxBuildQuantity() int32 {
 	if x != nil {
 		return x.MaxBuildQuantity
+	}
+	return 0
+}
+
+func (x *Catalog) GetMaxDefenseLevel() int32 {
+	if x != nil {
+		return x.MaxDefenseLevel
+	}
+	return 0
+}
+
+func (x *Catalog) GetShieldRegenPerTick() int32 {
+	if x != nil {
+		return x.ShieldRegenPerTick
+	}
+	return 0
+}
+
+func (x *Catalog) GetFortifyBaseCost() int64 {
+	if x != nil {
+		return x.FortifyBaseCost
 	}
 	return 0
 }
@@ -1203,6 +1253,102 @@ func (x *ColonizeRequest) GetPlanetId() string {
 	return ""
 }
 
+type InvadePlanetRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FleetId       string                 `protobuf:"bytes,1,opt,name=fleet_id,json=fleetId,proto3" json:"fleet_id,omitempty"`
+	PlanetId      string                 `protobuf:"bytes,2,opt,name=planet_id,json=planetId,proto3" json:"planet_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InvadePlanetRequest) Reset() {
+	*x = InvadePlanetRequest{}
+	mi := &file_protoverse_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InvadePlanetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InvadePlanetRequest) ProtoMessage() {}
+
+func (x *InvadePlanetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_protoverse_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InvadePlanetRequest.ProtoReflect.Descriptor instead.
+func (*InvadePlanetRequest) Descriptor() ([]byte, []int) {
+	return file_protoverse_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *InvadePlanetRequest) GetFleetId() string {
+	if x != nil {
+		return x.FleetId
+	}
+	return ""
+}
+
+func (x *InvadePlanetRequest) GetPlanetId() string {
+	if x != nil {
+		return x.PlanetId
+	}
+	return ""
+}
+
+type FortifyPlanetRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PlanetId      string                 `protobuf:"bytes,1,opt,name=planet_id,json=planetId,proto3" json:"planet_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FortifyPlanetRequest) Reset() {
+	*x = FortifyPlanetRequest{}
+	mi := &file_protoverse_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FortifyPlanetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FortifyPlanetRequest) ProtoMessage() {}
+
+func (x *FortifyPlanetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_protoverse_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FortifyPlanetRequest.ProtoReflect.Descriptor instead.
+func (*FortifyPlanetRequest) Descriptor() ([]byte, []int) {
+	return file_protoverse_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *FortifyPlanetRequest) GetPlanetId() string {
+	if x != nil {
+		return x.PlanetId
+	}
+	return ""
+}
+
 type ScanRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Center        *Position              `protobuf:"bytes,1,opt,name=center,proto3" json:"center,omitempty"`
@@ -1213,7 +1359,7 @@ type ScanRequest struct {
 
 func (x *ScanRequest) Reset() {
 	*x = ScanRequest{}
-	mi := &file_protoverse_proto_msgTypes[18]
+	mi := &file_protoverse_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1225,7 +1371,7 @@ func (x *ScanRequest) String() string {
 func (*ScanRequest) ProtoMessage() {}
 
 func (x *ScanRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[18]
+	mi := &file_protoverse_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1238,7 +1384,7 @@ func (x *ScanRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanRequest.ProtoReflect.Descriptor instead.
 func (*ScanRequest) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{18}
+	return file_protoverse_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ScanRequest) GetCenter() *Position {
@@ -1265,7 +1411,7 @@ type ScanResult struct {
 
 func (x *ScanResult) Reset() {
 	*x = ScanResult{}
-	mi := &file_protoverse_proto_msgTypes[19]
+	mi := &file_protoverse_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1277,7 +1423,7 @@ func (x *ScanResult) String() string {
 func (*ScanResult) ProtoMessage() {}
 
 func (x *ScanResult) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[19]
+	mi := &file_protoverse_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1290,7 +1436,7 @@ func (x *ScanResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanResult.ProtoReflect.Descriptor instead.
 func (*ScanResult) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{19}
+	return file_protoverse_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ScanResult) GetVisibleFleets() []*Fleet {
@@ -1317,7 +1463,7 @@ type ActionAck struct {
 
 func (x *ActionAck) Reset() {
 	*x = ActionAck{}
-	mi := &file_protoverse_proto_msgTypes[20]
+	mi := &file_protoverse_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1329,7 +1475,7 @@ func (x *ActionAck) String() string {
 func (*ActionAck) ProtoMessage() {}
 
 func (x *ActionAck) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[20]
+	mi := &file_protoverse_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1342,7 +1488,7 @@ func (x *ActionAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionAck.ProtoReflect.Descriptor instead.
 func (*ActionAck) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{20}
+	return file_protoverse_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ActionAck) GetActionId() string {
@@ -1369,7 +1515,7 @@ type GetLeaderboardRequest struct {
 
 func (x *GetLeaderboardRequest) Reset() {
 	*x = GetLeaderboardRequest{}
-	mi := &file_protoverse_proto_msgTypes[21]
+	mi := &file_protoverse_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1381,7 +1527,7 @@ func (x *GetLeaderboardRequest) String() string {
 func (*GetLeaderboardRequest) ProtoMessage() {}
 
 func (x *GetLeaderboardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[21]
+	mi := &file_protoverse_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1394,7 +1540,7 @@ func (x *GetLeaderboardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLeaderboardRequest.ProtoReflect.Descriptor instead.
 func (*GetLeaderboardRequest) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{21}
+	return file_protoverse_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *GetLeaderboardRequest) GetLimit() int32 {
@@ -1414,13 +1560,14 @@ type LeaderboardEntry struct {
 	Ships         int32                  `protobuf:"varint,6,opt,name=ships,proto3" json:"ships,omitempty"`
 	Kills         int32                  `protobuf:"varint,7,opt,name=kills,proto3" json:"kills,omitempty"`
 	Credits       int64                  `protobuf:"varint,8,opt,name=credits,proto3" json:"credits,omitempty"`
+	Captures      int32                  `protobuf:"varint,9,opt,name=captures,proto3" json:"captures,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LeaderboardEntry) Reset() {
 	*x = LeaderboardEntry{}
-	mi := &file_protoverse_proto_msgTypes[22]
+	mi := &file_protoverse_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1432,7 +1579,7 @@ func (x *LeaderboardEntry) String() string {
 func (*LeaderboardEntry) ProtoMessage() {}
 
 func (x *LeaderboardEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[22]
+	mi := &file_protoverse_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1445,7 +1592,7 @@ func (x *LeaderboardEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaderboardEntry.ProtoReflect.Descriptor instead.
 func (*LeaderboardEntry) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{22}
+	return file_protoverse_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *LeaderboardEntry) GetRank() int32 {
@@ -1504,6 +1651,13 @@ func (x *LeaderboardEntry) GetCredits() int64 {
 	return 0
 }
 
+func (x *LeaderboardEntry) GetCaptures() int32 {
+	if x != nil {
+		return x.Captures
+	}
+	return 0
+}
+
 type Leaderboard struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Entries       []*LeaderboardEntry    `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
@@ -1513,7 +1667,7 @@ type Leaderboard struct {
 
 func (x *Leaderboard) Reset() {
 	*x = Leaderboard{}
-	mi := &file_protoverse_proto_msgTypes[23]
+	mi := &file_protoverse_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1525,7 +1679,7 @@ func (x *Leaderboard) String() string {
 func (*Leaderboard) ProtoMessage() {}
 
 func (x *Leaderboard) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[23]
+	mi := &file_protoverse_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1538,7 +1692,7 @@ func (x *Leaderboard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Leaderboard.ProtoReflect.Descriptor instead.
 func (*Leaderboard) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{23}
+	return file_protoverse_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *Leaderboard) GetEntries() []*LeaderboardEntry {
@@ -1558,7 +1712,7 @@ type StreamGameStateRequest struct {
 
 func (x *StreamGameStateRequest) Reset() {
 	*x = StreamGameStateRequest{}
-	mi := &file_protoverse_proto_msgTypes[24]
+	mi := &file_protoverse_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1570,7 +1724,7 @@ func (x *StreamGameStateRequest) String() string {
 func (*StreamGameStateRequest) ProtoMessage() {}
 
 func (x *StreamGameStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[24]
+	mi := &file_protoverse_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1583,7 +1737,7 @@ func (x *StreamGameStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamGameStateRequest.ProtoReflect.Descriptor instead.
 func (*StreamGameStateRequest) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{24}
+	return file_protoverse_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *StreamGameStateRequest) GetPlayerId() string {
@@ -1604,6 +1758,8 @@ type GameEvent struct {
 	//	*GameEvent_IncomeEarned
 	//	*GameEvent_ActionFailed
 	//	*GameEvent_Tick
+	//	*GameEvent_PlanetBattle
+	//	*GameEvent_PlanetFortified
 	Event         isGameEvent_Event `protobuf_oneof:"event"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1611,7 +1767,7 @@ type GameEvent struct {
 
 func (x *GameEvent) Reset() {
 	*x = GameEvent{}
-	mi := &file_protoverse_proto_msgTypes[25]
+	mi := &file_protoverse_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1623,7 +1779,7 @@ func (x *GameEvent) String() string {
 func (*GameEvent) ProtoMessage() {}
 
 func (x *GameEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[25]
+	mi := &file_protoverse_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1636,7 +1792,7 @@ func (x *GameEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GameEvent.ProtoReflect.Descriptor instead.
 func (*GameEvent) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{25}
+	return file_protoverse_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GameEvent) GetEvent() isGameEvent_Event {
@@ -1709,6 +1865,24 @@ func (x *GameEvent) GetTick() *Tick {
 	return nil
 }
 
+func (x *GameEvent) GetPlanetBattle() *PlanetBattle {
+	if x != nil {
+		if x, ok := x.Event.(*GameEvent_PlanetBattle); ok {
+			return x.PlanetBattle
+		}
+	}
+	return nil
+}
+
+func (x *GameEvent) GetPlanetFortified() *PlanetFortified {
+	if x != nil {
+		if x, ok := x.Event.(*GameEvent_PlanetFortified); ok {
+			return x.PlanetFortified
+		}
+	}
+	return nil
+}
+
 type isGameEvent_Event interface {
 	isGameEvent_Event()
 }
@@ -1741,6 +1915,14 @@ type GameEvent_Tick struct {
 	Tick *Tick `protobuf:"bytes,7,opt,name=tick,proto3,oneof"`
 }
 
+type GameEvent_PlanetBattle struct {
+	PlanetBattle *PlanetBattle `protobuf:"bytes,8,opt,name=planet_battle,json=planetBattle,proto3,oneof"`
+}
+
+type GameEvent_PlanetFortified struct {
+	PlanetFortified *PlanetFortified `protobuf:"bytes,9,opt,name=planet_fortified,json=planetFortified,proto3,oneof"`
+}
+
 func (*GameEvent_FleetMoved) isGameEvent_Event() {}
 
 func (*GameEvent_CombatResolved) isGameEvent_Event() {}
@@ -1755,6 +1937,10 @@ func (*GameEvent_ActionFailed) isGameEvent_Event() {}
 
 func (*GameEvent_Tick) isGameEvent_Event() {}
 
+func (*GameEvent_PlanetBattle) isGameEvent_Event() {}
+
+func (*GameEvent_PlanetFortified) isGameEvent_Event() {}
+
 type FleetMoved struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	FleetId       string                 `protobuf:"bytes,1,opt,name=fleet_id,json=fleetId,proto3" json:"fleet_id,omitempty"`
@@ -1765,7 +1951,7 @@ type FleetMoved struct {
 
 func (x *FleetMoved) Reset() {
 	*x = FleetMoved{}
-	mi := &file_protoverse_proto_msgTypes[26]
+	mi := &file_protoverse_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1777,7 +1963,7 @@ func (x *FleetMoved) String() string {
 func (*FleetMoved) ProtoMessage() {}
 
 func (x *FleetMoved) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[26]
+	mi := &file_protoverse_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1790,7 +1976,7 @@ func (x *FleetMoved) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FleetMoved.ProtoReflect.Descriptor instead.
 func (*FleetMoved) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{26}
+	return file_protoverse_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *FleetMoved) GetFleetId() string {
@@ -1826,7 +2012,7 @@ type CombatResolved struct {
 
 func (x *CombatResolved) Reset() {
 	*x = CombatResolved{}
-	mi := &file_protoverse_proto_msgTypes[27]
+	mi := &file_protoverse_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1838,7 +2024,7 @@ func (x *CombatResolved) String() string {
 func (*CombatResolved) ProtoMessage() {}
 
 func (x *CombatResolved) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[27]
+	mi := &file_protoverse_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1851,7 +2037,7 @@ func (x *CombatResolved) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CombatResolved.ProtoReflect.Descriptor instead.
 func (*CombatResolved) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{27}
+	return file_protoverse_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *CombatResolved) GetAttackingFleetId() string {
@@ -1922,7 +2108,7 @@ type ShipBuilt struct {
 
 func (x *ShipBuilt) Reset() {
 	*x = ShipBuilt{}
-	mi := &file_protoverse_proto_msgTypes[28]
+	mi := &file_protoverse_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1934,7 +2120,7 @@ func (x *ShipBuilt) String() string {
 func (*ShipBuilt) ProtoMessage() {}
 
 func (x *ShipBuilt) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[28]
+	mi := &file_protoverse_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1947,7 +2133,7 @@ func (x *ShipBuilt) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShipBuilt.ProtoReflect.Descriptor instead.
 func (*ShipBuilt) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{28}
+	return file_protoverse_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ShipBuilt) GetPlanetId() string {
@@ -1988,7 +2174,7 @@ type PlanetColonized struct {
 
 func (x *PlanetColonized) Reset() {
 	*x = PlanetColonized{}
-	mi := &file_protoverse_proto_msgTypes[29]
+	mi := &file_protoverse_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2000,7 +2186,7 @@ func (x *PlanetColonized) String() string {
 func (*PlanetColonized) ProtoMessage() {}
 
 func (x *PlanetColonized) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[29]
+	mi := &file_protoverse_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2013,7 +2199,7 @@ func (x *PlanetColonized) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanetColonized.ProtoReflect.Descriptor instead.
 func (*PlanetColonized) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{29}
+	return file_protoverse_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *PlanetColonized) GetPlanetId() string {
@@ -2039,7 +2225,7 @@ type IncomeEarned struct {
 
 func (x *IncomeEarned) Reset() {
 	*x = IncomeEarned{}
-	mi := &file_protoverse_proto_msgTypes[30]
+	mi := &file_protoverse_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2051,7 +2237,7 @@ func (x *IncomeEarned) String() string {
 func (*IncomeEarned) ProtoMessage() {}
 
 func (x *IncomeEarned) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[30]
+	mi := &file_protoverse_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2064,7 +2250,7 @@ func (x *IncomeEarned) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IncomeEarned.ProtoReflect.Descriptor instead.
 func (*IncomeEarned) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{30}
+	return file_protoverse_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *IncomeEarned) GetCredits() int64 {
@@ -2084,7 +2270,7 @@ type ActionFailed struct {
 
 func (x *ActionFailed) Reset() {
 	*x = ActionFailed{}
-	mi := &file_protoverse_proto_msgTypes[31]
+	mi := &file_protoverse_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2096,7 +2282,7 @@ func (x *ActionFailed) String() string {
 func (*ActionFailed) ProtoMessage() {}
 
 func (x *ActionFailed) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[31]
+	mi := &file_protoverse_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2109,7 +2295,7 @@ func (x *ActionFailed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionFailed.ProtoReflect.Descriptor instead.
 func (*ActionFailed) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{31}
+	return file_protoverse_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ActionFailed) GetActionId() string {
@@ -2126,6 +2312,191 @@ func (x *ActionFailed) GetReason() string {
 	return ""
 }
 
+// One assault on a planet. Sent to both the attacker and the planet's owner.
+type PlanetBattle struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	PlanetId          string                 `protobuf:"bytes,1,opt,name=planet_id,json=planetId,proto3" json:"planet_id,omitempty"`
+	PlanetName        string                 `protobuf:"bytes,2,opt,name=planet_name,json=planetName,proto3" json:"planet_name,omitempty"`
+	FleetId           string                 `protobuf:"bytes,3,opt,name=fleet_id,json=fleetId,proto3" json:"fleet_id,omitempty"`
+	DamageToPlanet    int32                  `protobuf:"varint,4,opt,name=damage_to_planet,json=damageToPlanet,proto3" json:"damage_to_planet,omitempty"`
+	DamageToFleet     int32                  `protobuf:"varint,5,opt,name=damage_to_fleet,json=damageToFleet,proto3" json:"damage_to_fleet,omitempty"`
+	ShieldAfter       int32                  `protobuf:"varint,6,opt,name=shield_after,json=shieldAfter,proto3" json:"shield_after,omitempty"`
+	Captured          bool                   `protobuf:"varint,7,opt,name=captured,proto3" json:"captured,omitempty"`
+	AttackerDestroyed bool                   `protobuf:"varint,8,opt,name=attacker_destroyed,json=attackerDestroyed,proto3" json:"attacker_destroyed,omitempty"`
+	AttackerPlayerId  string                 `protobuf:"bytes,9,opt,name=attacker_player_id,json=attackerPlayerId,proto3" json:"attacker_player_id,omitempty"`
+	DefenderPlayerId  string                 `protobuf:"bytes,10,opt,name=defender_player_id,json=defenderPlayerId,proto3" json:"defender_player_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *PlanetBattle) Reset() {
+	*x = PlanetBattle{}
+	mi := &file_protoverse_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanetBattle) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanetBattle) ProtoMessage() {}
+
+func (x *PlanetBattle) ProtoReflect() protoreflect.Message {
+	mi := &file_protoverse_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanetBattle.ProtoReflect.Descriptor instead.
+func (*PlanetBattle) Descriptor() ([]byte, []int) {
+	return file_protoverse_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *PlanetBattle) GetPlanetId() string {
+	if x != nil {
+		return x.PlanetId
+	}
+	return ""
+}
+
+func (x *PlanetBattle) GetPlanetName() string {
+	if x != nil {
+		return x.PlanetName
+	}
+	return ""
+}
+
+func (x *PlanetBattle) GetFleetId() string {
+	if x != nil {
+		return x.FleetId
+	}
+	return ""
+}
+
+func (x *PlanetBattle) GetDamageToPlanet() int32 {
+	if x != nil {
+		return x.DamageToPlanet
+	}
+	return 0
+}
+
+func (x *PlanetBattle) GetDamageToFleet() int32 {
+	if x != nil {
+		return x.DamageToFleet
+	}
+	return 0
+}
+
+func (x *PlanetBattle) GetShieldAfter() int32 {
+	if x != nil {
+		return x.ShieldAfter
+	}
+	return 0
+}
+
+func (x *PlanetBattle) GetCaptured() bool {
+	if x != nil {
+		return x.Captured
+	}
+	return false
+}
+
+func (x *PlanetBattle) GetAttackerDestroyed() bool {
+	if x != nil {
+		return x.AttackerDestroyed
+	}
+	return false
+}
+
+func (x *PlanetBattle) GetAttackerPlayerId() string {
+	if x != nil {
+		return x.AttackerPlayerId
+	}
+	return ""
+}
+
+func (x *PlanetBattle) GetDefenderPlayerId() string {
+	if x != nil {
+		return x.DefenderPlayerId
+	}
+	return ""
+}
+
+type PlanetFortified struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PlanetId      string                 `protobuf:"bytes,1,opt,name=planet_id,json=planetId,proto3" json:"planet_id,omitempty"`
+	PlanetName    string                 `protobuf:"bytes,2,opt,name=planet_name,json=planetName,proto3" json:"planet_name,omitempty"`
+	NewLevel      int32                  `protobuf:"varint,3,opt,name=new_level,json=newLevel,proto3" json:"new_level,omitempty"`
+	Shield        int32                  `protobuf:"varint,4,opt,name=shield,proto3" json:"shield,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlanetFortified) Reset() {
+	*x = PlanetFortified{}
+	mi := &file_protoverse_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanetFortified) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanetFortified) ProtoMessage() {}
+
+func (x *PlanetFortified) ProtoReflect() protoreflect.Message {
+	mi := &file_protoverse_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanetFortified.ProtoReflect.Descriptor instead.
+func (*PlanetFortified) Descriptor() ([]byte, []int) {
+	return file_protoverse_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *PlanetFortified) GetPlanetId() string {
+	if x != nil {
+		return x.PlanetId
+	}
+	return ""
+}
+
+func (x *PlanetFortified) GetPlanetName() string {
+	if x != nil {
+		return x.PlanetName
+	}
+	return ""
+}
+
+func (x *PlanetFortified) GetNewLevel() int32 {
+	if x != nil {
+		return x.NewLevel
+	}
+	return 0
+}
+
+func (x *PlanetFortified) GetShield() int32 {
+	if x != nil {
+		return x.Shield
+	}
+	return 0
+}
+
 // Heartbeat sent to every stream at each tick.
 type Tick struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2136,7 +2507,7 @@ type Tick struct {
 
 func (x *Tick) Reset() {
 	*x = Tick{}
-	mi := &file_protoverse_proto_msgTypes[32]
+	mi := &file_protoverse_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2148,7 +2519,7 @@ func (x *Tick) String() string {
 func (*Tick) ProtoMessage() {}
 
 func (x *Tick) ProtoReflect() protoreflect.Message {
-	mi := &file_protoverse_proto_msgTypes[32]
+	mi := &file_protoverse_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2161,7 +2532,7 @@ func (x *Tick) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Tick.ProtoReflect.Descriptor instead.
 func (*Tick) Descriptor() ([]byte, []int) {
-	return file_protoverse_proto_rawDescGZIP(), []int{32}
+	return file_protoverse_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *Tick) GetTick() int64 {
@@ -2184,7 +2555,7 @@ const file_protoverse_proto_rawDesc = "" +
 	"\aapi_key\x18\x04 \x01(\tR\x06apiKey\"&\n" +
 	"\bPosition\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x01R\x01x\x12\f\n" +
-	"\x01y\x18\x02 \x01(\x01R\x01y\"\xd9\x01\n" +
+	"\x01y\x18\x02 \x01(\x01R\x01y\"\xb5\x02\n" +
 	"\x06Planet\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x12\n" +
@@ -2195,7 +2566,12 @@ const file_protoverse_proto_rawDesc = "" +
 	"production\x18\x06 \x01(\x05R\n" +
 	"production\x12\x1d\n" +
 	"\n" +
-	"owner_name\x18\a \x01(\tR\townerName\"\xa7\x01\n" +
+	"owner_name\x18\a \x01(\tR\townerName\x12#\n" +
+	"\rdefense_level\x18\b \x01(\x05R\fdefenseLevel\x12\x16\n" +
+	"\x06shield\x18\t \x01(\x05R\x06shield\x12\x1d\n" +
+	"\n" +
+	"max_shield\x18\n" +
+	" \x01(\x05R\tmaxShield\"\xa7\x01\n" +
 	"\x04Ship\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bfleet_id\x18\x02 \x01(\tR\afleetId\x12\x1b\n" +
@@ -2248,7 +2624,7 @@ const file_protoverse_proto_rawDesc = "" +
 	"\x05speed\x18\x06 \x01(\x01R\x05speed\x12\x12\n" +
 	"\x04cost\x18\a \x01(\x03R\x04cost\x12\x1f\n" +
 	"\vbuild_ticks\x18\b \x01(\x05R\n" +
-	"buildTicks\"\xa8\x02\n" +
+	"buildTicks\"\xb3\x03\n" +
 	"\aCatalog\x12-\n" +
 	"\x05ships\x18\x01 \x03(\v2\x17.protoverse.v1.ShipSpecR\x05ships\x122\n" +
 	"\x15tick_interval_seconds\x18\x02 \x01(\x05R\x13tickIntervalSeconds\x12\x1f\n" +
@@ -2257,7 +2633,11 @@ const file_protoverse_proto_rawDesc = "" +
 	"\fattack_range\x18\x04 \x01(\x01R\vattackRange\x12%\n" +
 	"\x0ecolonize_range\x18\x05 \x01(\x01R\rcolonizeRange\x12!\n" +
 	"\fcurrent_tick\x18\x06 \x01(\x03R\vcurrentTick\x12,\n" +
-	"\x12max_build_quantity\x18\a \x01(\x05R\x10maxBuildQuantity\"h\n" +
+	"\x12max_build_quantity\x18\a \x01(\x05R\x10maxBuildQuantity\x12*\n" +
+	"\x11max_defense_level\x18\b \x01(\x05R\x0fmaxDefenseLevel\x121\n" +
+	"\x15shield_regen_per_tick\x18\t \x01(\x05R\x12shieldRegenPerTick\x12*\n" +
+	"\x11fortify_base_cost\x18\n" +
+	" \x01(\x03R\x0ffortifyBaseCost\"h\n" +
 	"\x10MoveFleetRequest\x12\x19\n" +
 	"\bfleet_id\x18\x01 \x01(\tR\afleetId\x129\n" +
 	"\vdestination\x18\x02 \x01(\v2\x17.protoverse.v1.PositionR\vdestination\"e\n" +
@@ -2270,7 +2650,12 @@ const file_protoverse_proto_rawDesc = "" +
 	"\bquantity\x18\x03 \x01(\x05R\bquantity\"I\n" +
 	"\x0fColonizeRequest\x12\x19\n" +
 	"\bfleet_id\x18\x01 \x01(\tR\afleetId\x12\x1b\n" +
-	"\tplanet_id\x18\x02 \x01(\tR\bplanetId\"V\n" +
+	"\tplanet_id\x18\x02 \x01(\tR\bplanetId\"M\n" +
+	"\x13InvadePlanetRequest\x12\x19\n" +
+	"\bfleet_id\x18\x01 \x01(\tR\afleetId\x12\x1b\n" +
+	"\tplanet_id\x18\x02 \x01(\tR\bplanetId\"3\n" +
+	"\x14FortifyPlanetRequest\x12\x1b\n" +
+	"\tplanet_id\x18\x01 \x01(\tR\bplanetId\"V\n" +
 	"\vScanRequest\x12/\n" +
 	"\x06center\x18\x01 \x01(\v2\x17.protoverse.v1.PositionR\x06center\x12\x16\n" +
 	"\x06radius\x18\x02 \x01(\x01R\x06radius\"\x89\x01\n" +
@@ -2282,7 +2667,7 @@ const file_protoverse_proto_rawDesc = "" +
 	"\taction_id\x18\x01 \x01(\tR\bactionId\x12?\n" +
 	"\rscheduled_for\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\fscheduledFor\"-\n" +
 	"\x15GetLeaderboardRequest\x12\x14\n" +
-	"\x05limit\x18\x01 \x01(\x05R\x05limit\"\xdc\x01\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\"\xf8\x01\n" +
 	"\x10LeaderboardEntry\x12\x12\n" +
 	"\x04rank\x18\x01 \x01(\x05R\x04rank\x12\x1b\n" +
 	"\tplayer_id\x18\x02 \x01(\tR\bplayerId\x12!\n" +
@@ -2291,11 +2676,12 @@ const file_protoverse_proto_rawDesc = "" +
 	"\aplanets\x18\x05 \x01(\x05R\aplanets\x12\x14\n" +
 	"\x05ships\x18\x06 \x01(\x05R\x05ships\x12\x14\n" +
 	"\x05kills\x18\a \x01(\x05R\x05kills\x12\x18\n" +
-	"\acredits\x18\b \x01(\x03R\acredits\"H\n" +
+	"\acredits\x18\b \x01(\x03R\acredits\x12\x1a\n" +
+	"\bcaptures\x18\t \x01(\x05R\bcaptures\"H\n" +
 	"\vLeaderboard\x129\n" +
 	"\aentries\x18\x01 \x03(\v2\x1f.protoverse.v1.LeaderboardEntryR\aentries\"5\n" +
 	"\x16StreamGameStateRequest\x12\x1b\n" +
-	"\tplayer_id\x18\x01 \x01(\tR\bplayerId\"\xd7\x03\n" +
+	"\tplayer_id\x18\x01 \x01(\tR\bplayerId\"\xe8\x04\n" +
 	"\tGameEvent\x12<\n" +
 	"\vfleet_moved\x18\x01 \x01(\v2\x19.protoverse.v1.FleetMovedH\x00R\n" +
 	"fleetMoved\x12H\n" +
@@ -2305,7 +2691,9 @@ const file_protoverse_proto_rawDesc = "" +
 	"\x10planet_colonized\x18\x04 \x01(\v2\x1e.protoverse.v1.PlanetColonizedH\x00R\x0fplanetColonized\x12B\n" +
 	"\rincome_earned\x18\x05 \x01(\v2\x1b.protoverse.v1.IncomeEarnedH\x00R\fincomeEarned\x12B\n" +
 	"\raction_failed\x18\x06 \x01(\v2\x1b.protoverse.v1.ActionFailedH\x00R\factionFailed\x12)\n" +
-	"\x04tick\x18\a \x01(\v2\x13.protoverse.v1.TickH\x00R\x04tickB\a\n" +
+	"\x04tick\x18\a \x01(\v2\x13.protoverse.v1.TickH\x00R\x04tick\x12B\n" +
+	"\rplanet_battle\x18\b \x01(\v2\x1b.protoverse.v1.PlanetBattleH\x00R\fplanetBattle\x12K\n" +
+	"\x10planet_fortified\x18\t \x01(\v2\x1e.protoverse.v1.PlanetFortifiedH\x00R\x0fplanetFortifiedB\a\n" +
 	"\x05event\"c\n" +
 	"\n" +
 	"FleetMoved\x12\x19\n" +
@@ -2333,9 +2721,28 @@ const file_protoverse_proto_rawDesc = "" +
 	"\acredits\x18\x01 \x01(\x03R\acredits\"C\n" +
 	"\fActionFailed\x12\x1b\n" +
 	"\taction_id\x18\x01 \x01(\tR\bactionId\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"\x1a\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\x83\x03\n" +
+	"\fPlanetBattle\x12\x1b\n" +
+	"\tplanet_id\x18\x01 \x01(\tR\bplanetId\x12\x1f\n" +
+	"\vplanet_name\x18\x02 \x01(\tR\n" +
+	"planetName\x12\x19\n" +
+	"\bfleet_id\x18\x03 \x01(\tR\afleetId\x12(\n" +
+	"\x10damage_to_planet\x18\x04 \x01(\x05R\x0edamageToPlanet\x12&\n" +
+	"\x0fdamage_to_fleet\x18\x05 \x01(\x05R\rdamageToFleet\x12!\n" +
+	"\fshield_after\x18\x06 \x01(\x05R\vshieldAfter\x12\x1a\n" +
+	"\bcaptured\x18\a \x01(\bR\bcaptured\x12-\n" +
+	"\x12attacker_destroyed\x18\b \x01(\bR\x11attackerDestroyed\x12,\n" +
+	"\x12attacker_player_id\x18\t \x01(\tR\x10attackerPlayerId\x12,\n" +
+	"\x12defender_player_id\x18\n" +
+	" \x01(\tR\x10defenderPlayerId\"\x84\x01\n" +
+	"\x0fPlanetFortified\x12\x1b\n" +
+	"\tplanet_id\x18\x01 \x01(\tR\bplanetId\x12\x1f\n" +
+	"\vplanet_name\x18\x02 \x01(\tR\n" +
+	"planetName\x12\x1b\n" +
+	"\tnew_level\x18\x03 \x01(\x05R\bnewLevel\x12\x16\n" +
+	"\x06shield\x18\x04 \x01(\x05R\x06shield\"\x1a\n" +
 	"\x04Tick\x12\x12\n" +
-	"\x04tick\x18\x01 \x01(\x03R\x04tick2\xc3\x06\n" +
+	"\x04tick\x18\x01 \x01(\x03R\x04tick2\xe1\a\n" +
 	"\vGameService\x12K\n" +
 	"\rCreateAccount\x12#.protoverse.v1.CreateAccountRequest\x1a\x15.protoverse.v1.Player\x12J\n" +
 	"\n" +
@@ -2346,7 +2753,9 @@ const file_protoverse_proto_rawDesc = "" +
 	"\tMoveFleet\x12\x1f.protoverse.v1.MoveFleetRequest\x1a\x18.protoverse.v1.ActionAck\x12@\n" +
 	"\x06Attack\x12\x1c.protoverse.v1.AttackRequest\x1a\x18.protoverse.v1.ActionAck\x12F\n" +
 	"\tBuildShip\x12\x1f.protoverse.v1.BuildShipRequest\x1a\x18.protoverse.v1.ActionAck\x12D\n" +
-	"\bColonize\x12\x1e.protoverse.v1.ColonizeRequest\x1a\x18.protoverse.v1.ActionAck\x12=\n" +
+	"\bColonize\x12\x1e.protoverse.v1.ColonizeRequest\x1a\x18.protoverse.v1.ActionAck\x12L\n" +
+	"\fInvadePlanet\x12\".protoverse.v1.InvadePlanetRequest\x1a\x18.protoverse.v1.ActionAck\x12N\n" +
+	"\rFortifyPlanet\x12#.protoverse.v1.FortifyPlanetRequest\x1a\x18.protoverse.v1.ActionAck\x12=\n" +
 	"\x04Scan\x12\x1a.protoverse.v1.ScanRequest\x1a\x19.protoverse.v1.ScanResult\x12R\n" +
 	"\x0eGetLeaderboard\x12$.protoverse.v1.GetLeaderboardRequest\x1a\x1a.protoverse.v1.Leaderboard\x12T\n" +
 	"\x0fStreamGameState\x12%.protoverse.v1.StreamGameStateRequest\x1a\x18.protoverse.v1.GameEvent0\x01BCZAgithub.com/Atul-Koundal/protoverse/gen/protoverse/v1;protoversev1b\x06proto3"
@@ -2363,7 +2772,7 @@ func file_protoverse_proto_rawDescGZIP() []byte {
 	return file_protoverse_proto_rawDescData
 }
 
-var file_protoverse_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_protoverse_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_protoverse_proto_goTypes = []any{
 	(*Player)(nil),                 // 0: protoverse.v1.Player
 	(*Position)(nil),               // 1: protoverse.v1.Position
@@ -2383,32 +2792,36 @@ var file_protoverse_proto_goTypes = []any{
 	(*AttackRequest)(nil),          // 15: protoverse.v1.AttackRequest
 	(*BuildShipRequest)(nil),       // 16: protoverse.v1.BuildShipRequest
 	(*ColonizeRequest)(nil),        // 17: protoverse.v1.ColonizeRequest
-	(*ScanRequest)(nil),            // 18: protoverse.v1.ScanRequest
-	(*ScanResult)(nil),             // 19: protoverse.v1.ScanResult
-	(*ActionAck)(nil),              // 20: protoverse.v1.ActionAck
-	(*GetLeaderboardRequest)(nil),  // 21: protoverse.v1.GetLeaderboardRequest
-	(*LeaderboardEntry)(nil),       // 22: protoverse.v1.LeaderboardEntry
-	(*Leaderboard)(nil),            // 23: protoverse.v1.Leaderboard
-	(*StreamGameStateRequest)(nil), // 24: protoverse.v1.StreamGameStateRequest
-	(*GameEvent)(nil),              // 25: protoverse.v1.GameEvent
-	(*FleetMoved)(nil),             // 26: protoverse.v1.FleetMoved
-	(*CombatResolved)(nil),         // 27: protoverse.v1.CombatResolved
-	(*ShipBuilt)(nil),              // 28: protoverse.v1.ShipBuilt
-	(*PlanetColonized)(nil),        // 29: protoverse.v1.PlanetColonized
-	(*IncomeEarned)(nil),           // 30: protoverse.v1.IncomeEarned
-	(*ActionFailed)(nil),           // 31: protoverse.v1.ActionFailed
-	(*Tick)(nil),                   // 32: protoverse.v1.Tick
-	(*timestamppb.Timestamp)(nil),  // 33: google.protobuf.Timestamp
+	(*InvadePlanetRequest)(nil),    // 18: protoverse.v1.InvadePlanetRequest
+	(*FortifyPlanetRequest)(nil),   // 19: protoverse.v1.FortifyPlanetRequest
+	(*ScanRequest)(nil),            // 20: protoverse.v1.ScanRequest
+	(*ScanResult)(nil),             // 21: protoverse.v1.ScanResult
+	(*ActionAck)(nil),              // 22: protoverse.v1.ActionAck
+	(*GetLeaderboardRequest)(nil),  // 23: protoverse.v1.GetLeaderboardRequest
+	(*LeaderboardEntry)(nil),       // 24: protoverse.v1.LeaderboardEntry
+	(*Leaderboard)(nil),            // 25: protoverse.v1.Leaderboard
+	(*StreamGameStateRequest)(nil), // 26: protoverse.v1.StreamGameStateRequest
+	(*GameEvent)(nil),              // 27: protoverse.v1.GameEvent
+	(*FleetMoved)(nil),             // 28: protoverse.v1.FleetMoved
+	(*CombatResolved)(nil),         // 29: protoverse.v1.CombatResolved
+	(*ShipBuilt)(nil),              // 30: protoverse.v1.ShipBuilt
+	(*PlanetColonized)(nil),        // 31: protoverse.v1.PlanetColonized
+	(*IncomeEarned)(nil),           // 32: protoverse.v1.IncomeEarned
+	(*ActionFailed)(nil),           // 33: protoverse.v1.ActionFailed
+	(*PlanetBattle)(nil),           // 34: protoverse.v1.PlanetBattle
+	(*PlanetFortified)(nil),        // 35: protoverse.v1.PlanetFortified
+	(*Tick)(nil),                   // 36: protoverse.v1.Tick
+	(*timestamppb.Timestamp)(nil),  // 37: google.protobuf.Timestamp
 }
 var file_protoverse_proto_depIdxs = []int32{
-	33, // 0: protoverse.v1.Player.created_at:type_name -> google.protobuf.Timestamp
+	37, // 0: protoverse.v1.Player.created_at:type_name -> google.protobuf.Timestamp
 	1,  // 1: protoverse.v1.Planet.position:type_name -> protoverse.v1.Position
 	1,  // 2: protoverse.v1.Fleet.position:type_name -> protoverse.v1.Position
 	1,  // 3: protoverse.v1.Fleet.destination:type_name -> protoverse.v1.Position
 	3,  // 4: protoverse.v1.Fleet.ships:type_name -> protoverse.v1.Ship
-	33, // 5: protoverse.v1.Fleet.departed_at:type_name -> google.protobuf.Timestamp
-	33, // 6: protoverse.v1.Fleet.arrives_at:type_name -> google.protobuf.Timestamp
-	33, // 7: protoverse.v1.PendingAction.execute_at:type_name -> google.protobuf.Timestamp
+	37, // 5: protoverse.v1.Fleet.departed_at:type_name -> google.protobuf.Timestamp
+	37, // 6: protoverse.v1.Fleet.arrives_at:type_name -> google.protobuf.Timestamp
+	37, // 7: protoverse.v1.PendingAction.execute_at:type_name -> google.protobuf.Timestamp
 	0,  // 8: protoverse.v1.PlayerState.player:type_name -> protoverse.v1.Player
 	2,  // 9: protoverse.v1.PlayerState.planets:type_name -> protoverse.v1.Planet
 	4,  // 10: protoverse.v1.PlayerState.fleets:type_name -> protoverse.v1.Fleet
@@ -2420,43 +2833,49 @@ var file_protoverse_proto_depIdxs = []int32{
 	1,  // 16: protoverse.v1.ScanRequest.center:type_name -> protoverse.v1.Position
 	4,  // 17: protoverse.v1.ScanResult.visible_fleets:type_name -> protoverse.v1.Fleet
 	2,  // 18: protoverse.v1.ScanResult.visible_planets:type_name -> protoverse.v1.Planet
-	33, // 19: protoverse.v1.ActionAck.scheduled_for:type_name -> google.protobuf.Timestamp
-	22, // 20: protoverse.v1.Leaderboard.entries:type_name -> protoverse.v1.LeaderboardEntry
-	26, // 21: protoverse.v1.GameEvent.fleet_moved:type_name -> protoverse.v1.FleetMoved
-	27, // 22: protoverse.v1.GameEvent.combat_resolved:type_name -> protoverse.v1.CombatResolved
-	28, // 23: protoverse.v1.GameEvent.ship_built:type_name -> protoverse.v1.ShipBuilt
-	29, // 24: protoverse.v1.GameEvent.planet_colonized:type_name -> protoverse.v1.PlanetColonized
-	30, // 25: protoverse.v1.GameEvent.income_earned:type_name -> protoverse.v1.IncomeEarned
-	31, // 26: protoverse.v1.GameEvent.action_failed:type_name -> protoverse.v1.ActionFailed
-	32, // 27: protoverse.v1.GameEvent.tick:type_name -> protoverse.v1.Tick
-	1,  // 28: protoverse.v1.FleetMoved.new_position:type_name -> protoverse.v1.Position
-	5,  // 29: protoverse.v1.GameService.CreateAccount:input_type -> protoverse.v1.CreateAccountRequest
-	6,  // 30: protoverse.v1.GameService.GetMyState:input_type -> protoverse.v1.GetMyStateRequest
-	9,  // 31: protoverse.v1.GameService.GetGalaxyState:input_type -> protoverse.v1.GetGalaxyStateRequest
-	11, // 32: protoverse.v1.GameService.GetCatalog:input_type -> protoverse.v1.GetCatalogRequest
-	14, // 33: protoverse.v1.GameService.MoveFleet:input_type -> protoverse.v1.MoveFleetRequest
-	15, // 34: protoverse.v1.GameService.Attack:input_type -> protoverse.v1.AttackRequest
-	16, // 35: protoverse.v1.GameService.BuildShip:input_type -> protoverse.v1.BuildShipRequest
-	17, // 36: protoverse.v1.GameService.Colonize:input_type -> protoverse.v1.ColonizeRequest
-	18, // 37: protoverse.v1.GameService.Scan:input_type -> protoverse.v1.ScanRequest
-	21, // 38: protoverse.v1.GameService.GetLeaderboard:input_type -> protoverse.v1.GetLeaderboardRequest
-	24, // 39: protoverse.v1.GameService.StreamGameState:input_type -> protoverse.v1.StreamGameStateRequest
-	0,  // 40: protoverse.v1.GameService.CreateAccount:output_type -> protoverse.v1.Player
-	8,  // 41: protoverse.v1.GameService.GetMyState:output_type -> protoverse.v1.PlayerState
-	10, // 42: protoverse.v1.GameService.GetGalaxyState:output_type -> protoverse.v1.GalaxyState
-	13, // 43: protoverse.v1.GameService.GetCatalog:output_type -> protoverse.v1.Catalog
-	20, // 44: protoverse.v1.GameService.MoveFleet:output_type -> protoverse.v1.ActionAck
-	20, // 45: protoverse.v1.GameService.Attack:output_type -> protoverse.v1.ActionAck
-	20, // 46: protoverse.v1.GameService.BuildShip:output_type -> protoverse.v1.ActionAck
-	20, // 47: protoverse.v1.GameService.Colonize:output_type -> protoverse.v1.ActionAck
-	19, // 48: protoverse.v1.GameService.Scan:output_type -> protoverse.v1.ScanResult
-	23, // 49: protoverse.v1.GameService.GetLeaderboard:output_type -> protoverse.v1.Leaderboard
-	25, // 50: protoverse.v1.GameService.StreamGameState:output_type -> protoverse.v1.GameEvent
-	40, // [40:51] is the sub-list for method output_type
-	29, // [29:40] is the sub-list for method input_type
-	29, // [29:29] is the sub-list for extension type_name
-	29, // [29:29] is the sub-list for extension extendee
-	0,  // [0:29] is the sub-list for field type_name
+	37, // 19: protoverse.v1.ActionAck.scheduled_for:type_name -> google.protobuf.Timestamp
+	24, // 20: protoverse.v1.Leaderboard.entries:type_name -> protoverse.v1.LeaderboardEntry
+	28, // 21: protoverse.v1.GameEvent.fleet_moved:type_name -> protoverse.v1.FleetMoved
+	29, // 22: protoverse.v1.GameEvent.combat_resolved:type_name -> protoverse.v1.CombatResolved
+	30, // 23: protoverse.v1.GameEvent.ship_built:type_name -> protoverse.v1.ShipBuilt
+	31, // 24: protoverse.v1.GameEvent.planet_colonized:type_name -> protoverse.v1.PlanetColonized
+	32, // 25: protoverse.v1.GameEvent.income_earned:type_name -> protoverse.v1.IncomeEarned
+	33, // 26: protoverse.v1.GameEvent.action_failed:type_name -> protoverse.v1.ActionFailed
+	36, // 27: protoverse.v1.GameEvent.tick:type_name -> protoverse.v1.Tick
+	34, // 28: protoverse.v1.GameEvent.planet_battle:type_name -> protoverse.v1.PlanetBattle
+	35, // 29: protoverse.v1.GameEvent.planet_fortified:type_name -> protoverse.v1.PlanetFortified
+	1,  // 30: protoverse.v1.FleetMoved.new_position:type_name -> protoverse.v1.Position
+	5,  // 31: protoverse.v1.GameService.CreateAccount:input_type -> protoverse.v1.CreateAccountRequest
+	6,  // 32: protoverse.v1.GameService.GetMyState:input_type -> protoverse.v1.GetMyStateRequest
+	9,  // 33: protoverse.v1.GameService.GetGalaxyState:input_type -> protoverse.v1.GetGalaxyStateRequest
+	11, // 34: protoverse.v1.GameService.GetCatalog:input_type -> protoverse.v1.GetCatalogRequest
+	14, // 35: protoverse.v1.GameService.MoveFleet:input_type -> protoverse.v1.MoveFleetRequest
+	15, // 36: protoverse.v1.GameService.Attack:input_type -> protoverse.v1.AttackRequest
+	16, // 37: protoverse.v1.GameService.BuildShip:input_type -> protoverse.v1.BuildShipRequest
+	17, // 38: protoverse.v1.GameService.Colonize:input_type -> protoverse.v1.ColonizeRequest
+	18, // 39: protoverse.v1.GameService.InvadePlanet:input_type -> protoverse.v1.InvadePlanetRequest
+	19, // 40: protoverse.v1.GameService.FortifyPlanet:input_type -> protoverse.v1.FortifyPlanetRequest
+	20, // 41: protoverse.v1.GameService.Scan:input_type -> protoverse.v1.ScanRequest
+	23, // 42: protoverse.v1.GameService.GetLeaderboard:input_type -> protoverse.v1.GetLeaderboardRequest
+	26, // 43: protoverse.v1.GameService.StreamGameState:input_type -> protoverse.v1.StreamGameStateRequest
+	0,  // 44: protoverse.v1.GameService.CreateAccount:output_type -> protoverse.v1.Player
+	8,  // 45: protoverse.v1.GameService.GetMyState:output_type -> protoverse.v1.PlayerState
+	10, // 46: protoverse.v1.GameService.GetGalaxyState:output_type -> protoverse.v1.GalaxyState
+	13, // 47: protoverse.v1.GameService.GetCatalog:output_type -> protoverse.v1.Catalog
+	22, // 48: protoverse.v1.GameService.MoveFleet:output_type -> protoverse.v1.ActionAck
+	22, // 49: protoverse.v1.GameService.Attack:output_type -> protoverse.v1.ActionAck
+	22, // 50: protoverse.v1.GameService.BuildShip:output_type -> protoverse.v1.ActionAck
+	22, // 51: protoverse.v1.GameService.Colonize:output_type -> protoverse.v1.ActionAck
+	22, // 52: protoverse.v1.GameService.InvadePlanet:output_type -> protoverse.v1.ActionAck
+	22, // 53: protoverse.v1.GameService.FortifyPlanet:output_type -> protoverse.v1.ActionAck
+	21, // 54: protoverse.v1.GameService.Scan:output_type -> protoverse.v1.ScanResult
+	25, // 55: protoverse.v1.GameService.GetLeaderboard:output_type -> protoverse.v1.Leaderboard
+	27, // 56: protoverse.v1.GameService.StreamGameState:output_type -> protoverse.v1.GameEvent
+	44, // [44:57] is the sub-list for method output_type
+	31, // [31:44] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_protoverse_proto_init() }
@@ -2464,7 +2883,7 @@ func file_protoverse_proto_init() {
 	if File_protoverse_proto != nil {
 		return
 	}
-	file_protoverse_proto_msgTypes[25].OneofWrappers = []any{
+	file_protoverse_proto_msgTypes[27].OneofWrappers = []any{
 		(*GameEvent_FleetMoved)(nil),
 		(*GameEvent_CombatResolved)(nil),
 		(*GameEvent_ShipBuilt)(nil),
@@ -2472,6 +2891,8 @@ func file_protoverse_proto_init() {
 		(*GameEvent_IncomeEarned)(nil),
 		(*GameEvent_ActionFailed)(nil),
 		(*GameEvent_Tick)(nil),
+		(*GameEvent_PlanetBattle)(nil),
+		(*GameEvent_PlanetFortified)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2479,7 +2900,7 @@ func file_protoverse_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_protoverse_proto_rawDesc), len(file_protoverse_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   33,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -32,6 +32,14 @@ service GameService {
   rpc BuildShip(BuildShipRequest) returns (ActionAck);
   rpc Colonize(ColonizeRequest) returns (ActionAck);
 
+  // Assault an enemy planet with a fleet in attack range. The shield absorbs
+  // damage; the planet fires back; a trooper in the fleet captures the planet
+  // once its shield is down (the trooper is consumed).
+  rpc InvadePlanet(InvadePlanetRequest) returns (ActionAck);
+
+  // Spend credits to raise one of your planets' defense level by one.
+  rpc FortifyPlanet(FortifyPlanetRequest) returns (ActionAck);
+
   // Everything within `radius` of `center`.
   rpc Scan(ScanRequest) returns (ScanResult);
 
@@ -65,6 +73,10 @@ message Planet {
   int64 resources = 5;
   int32 production = 6;
   string owner_name = 7;
+  // Defense level (0..max_defense_level) and the shield it currently holds.
+  int32 defense_level = 8;
+  int32 shield = 9;
+  int32 max_shield = 10;
 }
 
 message Ship {
@@ -144,6 +156,10 @@ message Catalog {
   double colonize_range = 5;
   int64 current_tick = 6;
   int32 max_build_quantity = 7;
+  int32 max_defense_level = 8;
+  int32 shield_regen_per_tick = 9;
+  // Fortifying from level L to L+1 costs fortify_base_cost * (L+1).
+  int64 fortify_base_cost = 10;
 }
 
 message MoveFleetRequest {
@@ -165,6 +181,15 @@ message BuildShipRequest {
 message ColonizeRequest {
   string fleet_id = 1;
   string planet_id = 2;
+}
+
+message InvadePlanetRequest {
+  string fleet_id = 1;
+  string planet_id = 2;
+}
+
+message FortifyPlanetRequest {
+  string planet_id = 1;
 }
 
 message ScanRequest {
@@ -196,6 +221,7 @@ message LeaderboardEntry {
   int32 ships = 6;
   int32 kills = 7;
   int64 credits = 8;
+  int32 captures = 9;
 }
 
 message Leaderboard {
@@ -216,6 +242,8 @@ message GameEvent {
     IncomeEarned income_earned = 5;
     ActionFailed action_failed = 6;
     Tick tick = 7;
+    PlanetBattle planet_battle = 8;
+    PlanetFortified planet_fortified = 9;
   }
 }
 
@@ -257,6 +285,27 @@ message IncomeEarned {
 message ActionFailed {
   string action_id = 1;
   string reason = 2;
+}
+
+// One assault on a planet. Sent to both the attacker and the planet's owner.
+message PlanetBattle {
+  string planet_id = 1;
+  string planet_name = 2;
+  string fleet_id = 3;
+  int32 damage_to_planet = 4;
+  int32 damage_to_fleet = 5;
+  int32 shield_after = 6;
+  bool captured = 7;
+  bool attacker_destroyed = 8;
+  string attacker_player_id = 9;
+  string defender_player_id = 10;
+}
+
+message PlanetFortified {
+  string planet_id = 1;
+  string planet_name = 2;
+  int32 new_level = 3;
+  int32 shield = 4;
 }
 
 // Heartbeat sent to every stream at each tick.
